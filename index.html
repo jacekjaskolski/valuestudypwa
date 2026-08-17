@@ -23,6 +23,30 @@
       <p class="empty" id="emptyState">Load a photo to start.</p>
 
       <section class="controls">
+        <div class="study-controls" id="studyControls" hidden>
+          <div class="sliders">
+            <div class="slider">
+              <label class="slider__label" for="cutDark">
+                Darks <output class="slider__value" id="cutDarkValue" for="cutDark"></output>
+              </label>
+              <input type="range" id="cutDark" class="slider__input" min="0" max="100" step="1" />
+            </div>
+            <div class="slider">
+              <label class="slider__label" for="cutLight">
+                Lights <output class="slider__value" id="cutLightValue" for="cutLight"></output>
+              </label>
+              <input type="range" id="cutLight" class="slider__input" min="0" max="100" step="1" />
+            </div>
+          </div>
+
+          <div class="row">
+            <label class="check">
+              <input type="checkbox" id="greyscale" class="check__input" />
+              <span>Flat grey</span>
+            </label>
+          </div>
+        </div>
+
         <label class="file">
           <!--
             No `capture` attribute: on iOS it forces the camera and removes the photo library from

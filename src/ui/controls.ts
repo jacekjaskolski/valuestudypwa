@@ -58,6 +58,9 @@ export function bindControls(handlers: ControlHandlers): Controls {
     const file = fileInput.files?.[0];
     if (file) {
       handlers.onFile(file);
+      // Clear the input so picking the same photo again still fires `change`. The File reference
+      // above survives it.
+      fileInput.value = '';
     }
   });
 

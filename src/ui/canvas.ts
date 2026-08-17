@@ -81,3 +81,60 @@ export function drawPixels(
   }
   context2d(canvas).putImageData(new ImageData(pixels, width, height), 0, 0);
 }
+
+function cssVariable(name: string, fallback: string): string {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value === '' ? fallback : value;
+}
+
+/**
+ * Draw the luminance histogram with the current boundaries marked on it (SPEC.md §7).
+ *
+ * `marks` are positions on the `L` scale (0–100), matching the histogram's own axis. The point of
+ * the chart is to make the boundaries legible against the image's actual distribution, so it is
+ * drawn at device pixel ratio rather than scaled up from a small backing store.
+ */
+export function drawHistogram(
+  canvas: HTMLCanvasElement,
+  hist: Uint32Array,
+  marks: readonly number[],
+): void {
+  const ratio = window.devicePixelRatio || 1;
+  const width = Math.max(1, Math.round(canvas.clientWidth * ratio));
+  const height = Math.max(1, Math.round(canvas.clientHeight * ratio));
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+
+  const ctx = context2d(canvas);
+  ctx.clearRect(0, 0, width, height);
+
+  let peak = 0;
+  for (let i = 0; i < hist.length; i++) {
+    if (hist[i]! > peak) {
+      peak = hist[i]!;
+    }
+  }
+  if (peak === 0) {
+    return;
+  }
+
+  // Square-root scaling: a photographic histogram usually has one spike tall enough to flatten
+  // everything else into the baseline, and the shape of the tails is what matters here.
+  const scale = height / Math.sqrt(peak);
+  const barWidth = width / hist.length;
+
+  ctx.fillStyle = cssVariable('--line', '#6d6d6d');
+  for (let i = 0; i < hist.length; i++) {
+    const barHeight = Math.sqrt(hist[i]!) * scale;
+    ctx.fillRect(i * barWidth, height - barHeight, Math.ceil(barWidth), barHeight);
+  }
+
+  ctx.fillStyle = cssVariable('--control', '#cfcfcf');
+  const markWidth = Math.max(1, Math.round(ratio));
+  for (const mark of marks) {
+    const x = Math.round((mark / 100) * width);
+    ctx.fillRect(Math.min(x, width - markWidth), 0, markWidth, height);
+  }
+}

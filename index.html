@@ -24,6 +24,8 @@
 
       <section class="controls">
         <div class="study-controls" id="studyControls" hidden>
+          <canvas id="histogram" class="histogram" aria-hidden="true"></canvas>
+
           <div class="sliders">
             <div class="slider">
               <label class="slider__label" for="cutDark">
@@ -44,6 +46,7 @@
               <input type="checkbox" id="greyscale" class="check__input" />
               <span>Flat grey</span>
             </label>
+            <button type="button" id="reset" class="button">Reset</button>
           </div>
         </div>
 

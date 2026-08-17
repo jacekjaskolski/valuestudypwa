@@ -47,10 +47,31 @@ function labFInverse(t: number): number {
   return t > DELTA ? t * t * t : LINEAR_SLOPE * (t - 4 / 29);
 }
 
+/**
+ * Linear light (0–1) → sRGB byte, sampled at `LINEAR_TO_SRGB_STEPS + 1` points.
+ *
+ * The encode has a `pow` in it and the render pass calls it three times per pixel, every frame.
+ * Doing it directly costs an order of magnitude more than the rest of the cheap pass put together
+ * (see NOTES.md). The table is fine enough that the largest possible sampling error is under one
+ * byte, which the round-trip test pins.
+ */
+const LINEAR_TO_SRGB_STEPS = 4096;
+const LINEAR_TO_SRGB = new Uint8Array(LINEAR_TO_SRGB_STEPS + 1);
+for (let i = 0; i <= LINEAR_TO_SRGB_STEPS; i++) {
+  const c = i / LINEAR_TO_SRGB_STEPS;
+  const v = c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+  LINEAR_TO_SRGB[i] = Math.round(v * 255);
+}
+
 /** Linear light (0–1) → sRGB byte (0–255), clamped into gamut. */
 function linearToSrgbByte(c: number): number {
-  const v = c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
-  return v <= 0 ? 0 : v >= 1 ? 255 : Math.round(v * 255);
+  if (c <= 0) {
+    return 0;
+  }
+  if (c >= 1) {
+    return 255;
+  }
+  return LINEAR_TO_SRGB[(c * LINEAR_TO_SRGB_STEPS + 0.5) | 0]!;
 }
 
 /**

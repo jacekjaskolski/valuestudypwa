@@ -123,6 +123,19 @@ body {
   display: none;
 }
 
+/*
+ * The histogram and the sliders are the only things on screen carrying information, so they get
+ * what visual interest there is. The chart shares the sliders' full width so a boundary marker
+ * sits under the value it belongs to.
+ */
+.histogram {
+  display: block;
+  width: 100%;
+  height: 3.5rem;
+  background: var(--surface);
+  border-radius: var(--radius);
+}
+
 .sliders {
   display: flex;
   flex-direction: column;
@@ -220,22 +233,30 @@ body {
   accent-color: var(--control);
 }
 
+.button,
+.file__label {
+  display: inline-block;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  user-select: none;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--control);
+  outline-offset: 2px;
+}
+
 .file__input {
   position: absolute;
   width: 1px;
   height: 1px;
   opacity: 0;
   overflow: hidden;
-}
-
-.file__label {
-  display: inline-block;
-  padding: 0.6rem 1rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  color: var(--text);
-  cursor: pointer;
-  user-select: none;
 }
 
 .file__input:focus-visible + .file__label {

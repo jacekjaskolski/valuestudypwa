@@ -1,52 +1,57 @@
 /**
- * The control strip: sliders, toggles, file input.
+ * The control strip: sliders, toggles, buttons, file input.
  *
  * This module reads and writes widgets and reports plain values. It holds no pipeline state and
  * makes no decisions about what the values mean.
  */
 
-import type { Cuts } from '../pipeline/threshold';
+import type { Boundaries } from '../pipeline/threshold';
 import { requireElement } from './canvas';
 
 export interface ControlHandlers {
   onFile: (file: File) => void;
   /** One of the two boundaries moved. `moved` names which, so ordering can be clamped correctly. */
-  onCutMoved: (cuts: Cuts, moved: 'dark' | 'light') => void;
+  onBoundaryMoved: (boundaries: Boundaries, moved: 'dark' | 'light') => void;
   onGreyscale: (on: boolean) => void;
+  onReset: () => void;
 }
 
 export interface Controls {
   /** Push model state back into the widgets, after clamping or a reset. */
-  showCuts: (cuts: Cuts) => void;
+  showBoundaries: (boundaries: Boundaries) => void;
   /** Reveal the study controls once there is an image to apply them to. */
   setStudyControlsVisible: (visible: boolean) => void;
   greyscale: () => boolean;
 }
 
-/** How a boundary's position is written next to its label. */
-function formatCut(value: number): string {
-  return String(Math.round(value));
+/**
+ * Boundaries are percentiles of the image's own luminance (SPEC.md §6.4), so they read as a
+ * share of the picture rather than an abstract number.
+ */
+function formatBoundary(percentile: number): string {
+  return `${Math.round(percentile)}%`;
 }
 
 export function bindControls(handlers: ControlHandlers): Controls {
   const studyControls = requireElement('studyControls', HTMLDivElement);
   const fileInput = requireElement('fileInput', HTMLInputElement);
   const greyscaleInput = requireElement('greyscale', HTMLInputElement);
+  const resetButton = requireElement('reset', HTMLButtonElement);
   const darkInput = requireElement('cutDark', HTMLInputElement);
   const lightInput = requireElement('cutLight', HTMLInputElement);
   const darkValue = requireElement('cutDarkValue', HTMLOutputElement);
   const lightValue = requireElement('cutLightValue', HTMLOutputElement);
 
-  const readCuts = (): Cuts => ({
+  const readBoundaries = (): Boundaries => ({
     dark: Number(darkInput.value),
     light: Number(lightInput.value),
   });
 
-  const showCuts = (cuts: Cuts): void => {
-    darkInput.value = String(cuts.dark);
-    lightInput.value = String(cuts.light);
-    darkValue.textContent = formatCut(cuts.dark);
-    lightValue.textContent = formatCut(cuts.light);
+  const showBoundaries = (boundaries: Boundaries): void => {
+    darkInput.value = String(boundaries.dark);
+    lightInput.value = String(boundaries.light);
+    darkValue.textContent = formatBoundary(boundaries.dark);
+    lightValue.textContent = formatBoundary(boundaries.light);
   };
 
   fileInput.addEventListener('change', () => {
@@ -56,12 +61,13 @@ export function bindControls(handlers: ControlHandlers): Controls {
     }
   });
 
-  darkInput.addEventListener('input', () => handlers.onCutMoved(readCuts(), 'dark'));
-  lightInput.addEventListener('input', () => handlers.onCutMoved(readCuts(), 'light'));
+  darkInput.addEventListener('input', () => handlers.onBoundaryMoved(readBoundaries(), 'dark'));
+  lightInput.addEventListener('input', () => handlers.onBoundaryMoved(readBoundaries(), 'light'));
   greyscaleInput.addEventListener('change', () => handlers.onGreyscale(greyscaleInput.checked));
+  resetButton.addEventListener('click', () => handlers.onReset());
 
   return {
-    showCuts,
+    showBoundaries,
     setStudyControlsVisible: (visible) => {
       studyControls.hidden = !visible;
     },

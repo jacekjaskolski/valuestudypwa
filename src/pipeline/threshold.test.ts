@@ -1,26 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { clampCuts, thresholdL, ZONE_DARK, ZONE_LIGHT, ZONE_MID } from './threshold';
+import { clampBoundaries, thresholdL, ZONE_DARK, ZONE_LIGHT, ZONE_MID } from './threshold';
 
-describe('clampCuts', () => {
+describe('clampBoundaries', () => {
   it('leaves an ordered pair alone', () => {
-    expect(clampCuts({ dark: 30, light: 70 }, 'dark')).toEqual({ dark: 30, light: 70 });
+    expect(clampBoundaries({ dark: 30, light: 70 }, 'dark')).toEqual({ dark: 30, light: 70 });
   });
 
   it('clamps the dark boundary when it is dragged past the light one', () => {
-    expect(clampCuts({ dark: 80, light: 70 }, 'dark')).toEqual({ dark: 70, light: 70 });
+    expect(clampBoundaries({ dark: 80, light: 70 }, 'dark')).toEqual({ dark: 70, light: 70 });
   });
 
   it('clamps the light boundary when it is dragged past the dark one', () => {
-    expect(clampCuts({ dark: 40, light: 20 }, 'light')).toEqual({ dark: 40, light: 40 });
+    expect(clampBoundaries({ dark: 40, light: 20 }, 'light')).toEqual({ dark: 40, light: 40 });
   });
 
   it('never moves the boundary the painter is not touching', () => {
-    expect(clampCuts({ dark: 80, light: 70 }, 'dark').light).toBe(70);
-    expect(clampCuts({ dark: 40, light: 20 }, 'light').dark).toBe(40);
+    expect(clampBoundaries({ dark: 80, light: 70 }, 'dark').light).toBe(70);
+    expect(clampBoundaries({ dark: 40, light: 20 }, 'light').dark).toBe(40);
   });
 
   it('allows the two to meet, collapsing the mid zone', () => {
-    expect(clampCuts({ dark: 50, light: 50 }, 'dark')).toEqual({ dark: 50, light: 50 });
+    expect(clampBoundaries({ dark: 50, light: 50 }, 'dark')).toEqual({ dark: 50, light: 50 });
   });
 });
 

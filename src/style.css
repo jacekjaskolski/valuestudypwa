@@ -1,0 +1,144 @@
+/*
+ * SPEC.md §7 "Design direction": the chrome is mid-grey and desaturated, close to a neutral
+ * gallery wall. A coloured or high-contrast interface sitting next to a value study biases how
+ * the painter reads the values in it. Nothing here has a hue.
+ */
+
+:root {
+  --bg: #585858;
+  --surface: #4f4f4f;
+  --line: #6d6d6d;
+  --text: #e6e6e6;
+  --text-dim: #b4b4b4;
+  --control: #cfcfcf;
+
+  --gap: 0.75rem;
+  --radius: 2px;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  -webkit-text-size-adjust: 100%;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  padding: var(--gap);
+  padding-bottom: max(var(--gap), env(safe-area-inset-bottom));
+  min-height: 100dvh;
+}
+
+/* --- image panels ------------------------------------------------------- */
+
+/*
+ * Stacked on narrow viewports, side by side on wide ones. The study gets more space than the
+ * photo; the photo is a reference thumbnail, not a co-equal panel (SPEC.md §7).
+ */
+.panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--gap);
+  align-items: start;
+}
+
+@media (min-width: 720px) {
+  .panels {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  }
+}
+
+.panels[hidden] {
+  display: none;
+}
+
+.panel {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.panel__canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--surface);
+  border-radius: var(--radius);
+}
+
+.panel__label {
+  color: var(--text-dim);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* --- empty state -------------------------------------------------------- */
+
+.empty {
+  margin: 0;
+  padding: 3rem 1rem;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.empty[hidden] {
+  display: none;
+}
+
+/* --- controls ----------------------------------------------------------- */
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  margin-top: auto;
+}
+
+.file__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.file__label {
+  display: inline-block;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.file__input:focus-visible + .file__label {
+  outline: 2px solid var(--control);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

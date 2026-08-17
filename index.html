@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#585858" />
+    <title>Value Study</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section class="panels" id="panels" hidden>
+        <figure class="panel panel--original">
+          <canvas id="originalCanvas" class="panel__canvas"></canvas>
+          <figcaption class="panel__label">Photo</figcaption>
+        </figure>
+        <figure class="panel panel--study">
+          <canvas id="studyCanvas" class="panel__canvas"></canvas>
+          <figcaption class="panel__label">Value study</figcaption>
+        </figure>
+      </section>
+
+      <p class="empty" id="emptyState">Load a photo to start.</p>
+
+      <section class="controls">
+        <label class="file">
+          <!--
+            No `capture` attribute: on iOS it forces the camera and removes the photo library from
+            the picker. Plain `accept="image/*"` already offers Take Photo alongside the library.
+            See NOTES.md.
+          -->
+          <input type="file" id="fileInput" class="file__input" accept="image/*" />
+          <span class="file__label">Load photo</span>
+        </label>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

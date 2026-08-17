@@ -1,0 +1,19 @@
+{
+  "name": "wtrclr-vs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Watercolor value study tool. Browser-only, offline-capable.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vite": "^7.0.0",
+    "vitest": "^4.0.0"
+  }
+}

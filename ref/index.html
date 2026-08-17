@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Image Upload and Display</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="image_upload.css">
+  <!-- <script src="https://cdn.jsdelivr.net/npm/stackblur-canvas@2.5.1/dist/stackblur.min.js"></script> -->
+</head>
+<body>
+
+  <div class="container">
+    <div class="column">
+      <h2>Original Image</h2>
+      <img id="originalImage" src="" alt="Original image will be displayed here" />
+    </div>
+    <div class="column">
+      <h2>Value Study</h2>
+      <!-- Modified image will be displayed here in the future -->
+    </div>
+  </div>
+
+  <div class="histogram-container">
+    <canvas id="histogram" width="500" height="100"></canvas>
+  </div>
+
+  <div class="slider-container">
+    <div class="slider-group">
+      <label for="tholdMids">Mids: <span id="tholdMidsValue"></span></label>
+      <input type="range" id="tholdMids" min="0" max="100" value="67" style="width: 500px;">
+    </div>
+    <div class="slider-group">
+      <label for="tholdDarks">Darks: <span id="tholdDarksValue"></span></label>
+      <input type="range" id="tholdDarks" min="0" max="100" value="0" style="width: 500px;">
+    </div>
+  </div>
+
+<!--   <div class="toggle-container">
+    <label for="simplifyToggle">Simplify VS:</label>
+    <input type="checkbox" id="simplifyToggle">
+  </div> -->
+
+  <div class="file-loader">
+    <h2>Open Image</h2>
+    <input type="file" id="inputFile" accept="image/*" />
+    <input type="text" id="inputUrl" placeholder="Enter image URL" />
+    <button id="loadBtn">Load from URL</button>
+  </div>
+
+
+  <script src="image_upload.js"></script>
+</body>
+</html>

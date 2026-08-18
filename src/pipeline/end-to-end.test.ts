@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { srgbToLab } from './color';
 import { buildHistogram, percentilesToCuts, suggestPercentiles } from './histogram';
 import { buildZoneColours, renderFlat, renderZones } from './render';
+import {
+  createSimplifyScratch,
+  majorityFilter,
+  absorbSmallRegions,
+  simplifySettings,
+} from './simplify';
 import { thresholdL, ZONE_DARK } from './threshold';
 
 /** A synthetic photo: sky gradient, a dark foreground mass, and a mid-value subject. */
@@ -72,6 +78,29 @@ describe('whole pipeline on a synthetic photo', () => {
     renderFlat(labels, [12, 50, 88], out);
     const greyTime = performance.now() - greyStart;
 
+    const settings = simplifySettings(1, width, height);
+    const scratch = createSimplifyScratch(width, height);
+    const simplified = new Uint8Array(width * height);
+    const absorbed = new Uint8Array(width * height);
+
+    /** Median of several runs: a single call is mostly JIT warm-up, not steady-state cost. */
+    const median = (run: () => void): number => {
+      const times: number[] = [];
+      for (let i = 0; i < 7; i++) {
+        const start = performance.now();
+        run();
+        times.push(performance.now() - start);
+      }
+      return times.sort((a, b) => a - b)[3]!;
+    };
+
+    const majorityTime = median(() =>
+      majorityFilter(labels, width, height, settings.radius, scratch, simplified),
+    );
+    const absorbTime = median(() =>
+      absorbSmallRegions(simplified, width, height, settings.minArea, scratch, absorbed),
+    );
+
     const counts = [0, 0, 0];
     for (let i = 0; i < labels.length; i++) {
       counts[labels[i]!]!++;
@@ -89,6 +118,9 @@ describe('whole pipeline on a synthetic photo', () => {
         `suggestion          dark ${suggestion.dark}% light ${suggestion.light}%`,
         `cuts                L ${cuts.dark.toFixed(1)} / ${cuts.light.toFixed(1)}`,
         `zone shares         dark ${share[0]} mid ${share[1]} light ${share[2]}`,
+        `simplify radius     ${settings.radius}px, minArea ${Math.round(settings.minArea)}px`,
+        `majorityFilter      ${majorityTime.toFixed(1)}ms`,
+        `absorbSmallRegions  ${absorbTime.toFixed(1)}ms`,
       ].join('\n'),
     );
 

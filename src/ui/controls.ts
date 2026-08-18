@@ -1,6 +1,6 @@
 /**
- * The control strip: toggles, buttons, file input, and the numeric readouts above the value bar.
- * The two boundaries themselves live in `valuebar.ts`.
+ * The control strip: view switch, plain sliders, toggles, buttons, file input, and the numeric
+ * readouts above the value bar. The two boundaries themselves live in `valuebar.ts`.
  *
  * This module reads and writes widgets and reports plain values. It holds no pipeline state and
  * makes no decisions about what the values mean.
@@ -8,10 +8,22 @@
 
 import { requireElement } from './canvas';
 
+/** Which panels are on screen. Controls that make no sense for the view are hidden by CSS. */
+export type View = 'both' | 'photo' | 'study';
+
+function isView(value: string | null): value is View {
+  return value === 'both' || value === 'photo' || value === 'study';
+}
+
 export interface ControlHandlers {
   onFile: (file: File) => void;
   onGreyscale: (on: boolean) => void;
   onShowDarks: (on: boolean) => void;
+  /** 0–1. */
+  onSimplify: (strength: number) => void;
+  /** 0–1. */
+  onSquint: (strength: number) => void;
+  onView: (view: View) => void;
   onReset: () => void;
 }
 
@@ -24,17 +36,29 @@ export interface Controls {
   showReadouts: (dark: string, light: string) => void;
   /** Reflect the dark preview being switched on by something other than its own checkbox. */
   showDarksState: (on: boolean) => void;
-  greyscale: () => boolean;
-  showDarks: () => boolean;
+  showView: (view: View) => void;
+}
+
+/** A strength slider reads as a plain percentage, and says "off" when it is doing nothing. */
+function formatStrength(strength: number): string {
+  return strength === 0 ? 'off' : `${Math.round(strength * 100)}%`;
 }
 
 export function bindControls(handlers: ControlHandlers): Controls {
+  const app = requireElement('app', HTMLDivElement);
   const fileInput = requireElement('fileInput', HTMLInputElement);
   const greyscaleInput = requireElement('greyscale', HTMLInputElement);
   const showDarksInput = requireElement('showDarks', HTMLInputElement);
+  const simplifyInput = requireElement('simplify', HTMLInputElement);
+  const simplifyValue = requireElement('simplifyValue', HTMLOutputElement);
+  const squintInput = requireElement('squint', HTMLInputElement);
+  const squintValue = requireElement('squintValue', HTMLOutputElement);
   const resetButton = requireElement('reset', HTMLButtonElement);
   const darkValue = requireElement('cutDarkValue', HTMLOutputElement);
   const lightValue = requireElement('cutLightValue', HTMLOutputElement);
+  const viewButtons = Array.from(
+    document.querySelectorAll<HTMLButtonElement>('.segmented__button'),
+  );
 
   fileInput.addEventListener('change', () => {
     const file = fileInput.files?.[0];
@@ -50,6 +74,38 @@ export function bindControls(handlers: ControlHandlers): Controls {
   showDarksInput.addEventListener('change', () => handlers.onShowDarks(showDarksInput.checked));
   resetButton.addEventListener('click', () => handlers.onReset());
 
+  simplifyInput.addEventListener('input', () => {
+    const strength = Number(simplifyInput.value) / 100;
+    simplifyValue.textContent = formatStrength(strength);
+    handlers.onSimplify(strength);
+  });
+
+  squintInput.addEventListener('input', () => {
+    const strength = Number(squintInput.value) / 100;
+    squintValue.textContent = formatStrength(strength);
+    handlers.onSquint(strength);
+  });
+
+  const showView = (view: View): void => {
+    app.dataset['view'] = view;
+    for (const button of viewButtons) {
+      button.setAttribute('aria-pressed', String(button.dataset['view'] === view));
+    }
+  };
+
+  for (const button of viewButtons) {
+    button.addEventListener('click', () => {
+      const view = button.dataset['view'] ?? null;
+      if (isView(view)) {
+        showView(view);
+        handlers.onView(view);
+      }
+    });
+  }
+
+  simplifyValue.textContent = formatStrength(Number(simplifyInput.value) / 100);
+  squintValue.textContent = formatStrength(Number(squintInput.value) / 100);
+
   return {
     showReadouts: (dark, light) => {
       darkValue.textContent = dark;
@@ -58,7 +114,6 @@ export function bindControls(handlers: ControlHandlers): Controls {
     showDarksState: (on) => {
       showDarksInput.checked = on;
     },
-    greyscale: () => greyscaleInput.checked,
-    showDarks: () => showDarksInput.checked,
+    showView,
   };
 }

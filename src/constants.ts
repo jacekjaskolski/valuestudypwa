@@ -97,3 +97,40 @@ export const SUGGEST_DARK_SPREAD = 0.1;
 export const SUGGEST_WEIGHT_MID = 1;
 export const SUGGEST_WEIGHT_FRAGMENTATION = 0.6;
 export const SUGGEST_WEIGHT_DARK = 0.8;
+
+/* --- shape simplification (SPEC.md §6.5) ---------------------------------
+ * One Simplify slider drives both stages; these set what its far end means.
+ */
+
+/**
+ * At full strength, the majority window's radius as a fraction of the image's longest edge.
+ *
+ * Higher: shapes merge into broad masses and fine structure disappears entirely.
+ * Lower: the slider tops out before it can unify anything larger than speckle.
+ */
+export const SIMPLIFY_MAX_RADIUS_FRACTION = 0.008;
+
+/**
+ * At full strength, the smallest region kept, as a fraction of total image area.
+ *
+ * Higher: isolated shapes get swallowed by whatever surrounds them, including ones the painter
+ * may have wanted. Lower: scattered islands survive and the study stays busy.
+ */
+export const SIMPLIFY_MAX_AREA_FRACTION = 0.01;
+
+/**
+ * At full strength, the squint blur as a fraction of the displayed photo's width.
+ *
+ * This is a display effect on the reference photo, not a pipeline stage: squinting is how a
+ * painter finds unified shapes, and a blur is the honest simulation of it.
+ * Higher: only the largest masses survive. Lower: the slider never merges anything.
+ */
+export const SQUINT_MAX_BLUR_FRACTION = 0.025;
+
+/**
+ * How long the controls must be still before the settled pass runs, in milliseconds.
+ *
+ * Longer: dragging stays cheap but the finished study takes noticeably long to appear.
+ * Shorter: the expensive stage fires mid-drag and the interaction stutters.
+ */
+export const SETTLE_DELAY_MS = 160;

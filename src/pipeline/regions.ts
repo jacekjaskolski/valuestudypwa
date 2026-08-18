@@ -19,6 +19,16 @@ export interface Regions {
   count: number;
 }
 
+export interface UniformRegions {
+  /** Region id for every pixel; never negative, since every pixel belongs to some region. */
+  ids: Int32Array;
+  /** Area in pixels, indexed by region id. */
+  areas: Uint32Array;
+  /** The label each region is made of, indexed by region id. */
+  zones: Uint8Array;
+  count: number;
+}
+
 export type Connectivity = 4 | 8;
 
 /** Neighbour offsets as [dx, dy], four-connected first. */
@@ -123,4 +133,74 @@ export function countRegionsAtLeast(regions: Regions, minArea: number): number {
     }
   }
   return count;
+}
+
+/**
+ * Every maximal run of same-labelled pixels, in one pass.
+ *
+ * Input: `labels` at `width` × `height`; `ids` and `stack`, caller-owned buffers of `width *
+ * height` reused across frames. Output: a region id for every pixel, plus each region's area and
+ * which zone it is made of.
+ *
+ * `labelRegions` answers "where are this zone's shapes"; this answers "where are all the shapes",
+ * which is what small-region removal needs — and needs once rather than once per zone.
+ */
+export function labelUniformRegions(
+  labels: ZoneMap,
+  width: number,
+  height: number,
+  ids: Int32Array,
+  stack: Int32Array,
+  connectivity: Connectivity = 4,
+): UniformRegions {
+  const size = width * height;
+  ids.fill(-1, 0, size);
+  const areas: number[] = [];
+  const zones: number[] = [];
+  const neighbours = connectivity === 8 ? NEIGHBOURS_8 : NEIGHBOURS_4;
+
+  let count = 0;
+
+  for (let start = 0; start < size; start++) {
+    if (ids[start] !== -1) {
+      continue;
+    }
+
+    const zone = labels[start]!;
+    const id = count++;
+    let top = 0;
+    let area = 0;
+    stack[top++] = start;
+    ids[start] = id;
+
+    while (top > 0) {
+      const p = stack[--top]!;
+      area++;
+      const x = p % width;
+      const y = (p - x) / width;
+
+      for (const [dx, dy] of neighbours) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
+          continue;
+        }
+        const n = ny * width + nx;
+        if (labels[n] === zone && ids[n] === -1) {
+          ids[n] = id;
+          stack[top++] = n;
+        }
+      }
+    }
+
+    areas.push(area);
+    zones.push(zone);
+  }
+
+  return {
+    ids,
+    areas: Uint32Array.from(areas),
+    zones: Uint8Array.from(zones),
+    count,
+  };
 }

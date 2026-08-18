@@ -9,6 +9,8 @@ import {
   DEFAULT_PERCENTILE_DARK,
   DEFAULT_PERCENTILE_LIGHT,
   HISTOGRAM_BINS,
+  SETTLE_DELAY_MS,
+  SQUINT_MAX_BLUR_FRACTION,
   WORKING_RESOLUTION,
   ZONE_L,
 } from './constants';
@@ -26,6 +28,13 @@ import {
   type ZoneColours,
 } from './pipeline/render';
 import {
+  absorbSmallRegions,
+  createSimplifyScratch,
+  majorityFilter,
+  simplifySettings,
+  type SimplifyScratch,
+} from './pipeline/simplify';
+import {
   clampBoundaries,
   thresholdL,
   type Boundaries,
@@ -40,7 +49,7 @@ import {
   requireElement,
   type SourcePixels,
 } from './ui/canvas';
-import { bindControls } from './ui/controls';
+import { bindControls, type View } from './ui/controls';
 import { bindValueBar } from './ui/valuebar';
 
 /**
@@ -64,6 +73,8 @@ interface ImageState {
    */
   zoneColours: ZoneColours | null;
   labels: ZoneMap;
+  simplified: ZoneMap;
+  scratch: SimplifyScratch;
   output: Rgba;
 }
 
@@ -81,6 +92,11 @@ interface Params {
    * keeps its value either way, so switching it back on restores what was there.
    */
   showDarks: boolean;
+  /** Shape simplification strength, 0–1. */
+  simplify: number;
+  /** Squint blur on the reference photo, 0–1. A display effect, not a pipeline stage. */
+  squint: number;
+  view: View;
 }
 
 const photoFrame = requireElement('photoFrame', HTMLLabelElement);
@@ -97,6 +113,9 @@ let params: Params = {
   cuts: { dark: DEFAULT_PERCENTILE_DARK, light: DEFAULT_PERCENTILE_LIGHT },
   greyscale: true,
   showDarks: false,
+  simplify: 0,
+  squint: 0,
+  view: 'both',
 };
 
 /** Expensive pass: SPEC.md §4 steps 1–5. Runs once per image. */
@@ -104,6 +123,7 @@ async function runExpensivePass(file: Blob): Promise<ImageState> {
   const source = await decodeToWorkingSize(file, WORKING_RESOLUTION);
   const lab = srgbToLab(source.rgba);
   const hist = buildHistogram(lab.L, HISTOGRAM_BINS);
+  const size = source.width * source.height;
   return {
     source,
     lab,
@@ -113,7 +133,9 @@ async function runExpensivePass(file: Blob): Promise<ImageState> {
       suggestPercentiles(lab.L, source.width, source.height),
     ),
     zoneColours: null,
-    labels: new Uint8Array(source.width * source.height),
+    labels: new Uint8Array(size),
+    simplified: new Uint8Array(size),
+    scratch: createSimplifyScratch(source.width, source.height),
     output: new Uint8ClampedArray(source.rgba.length),
   };
 }
@@ -128,9 +150,17 @@ function shareBelow(image: ImageState | null, l: number): string {
   return image === null ? '—' : `${Math.round(lToPercentile(image.hist, l))}%`;
 }
 
-/** Cheap pass: SPEC.md §4 steps 6–9. Runs on every control change. */
-function runCheapPass(image: ImageState, current: Params): void {
+/**
+ * Cheap pass: SPEC.md §4 steps 6–9. Runs on every control change.
+ *
+ * `settled` is the full-resolution pass SPEC.md §4 asks for on release. Small-region removal costs
+ * roughly as much again as everything else put together, and unlike the majority filter it is a
+ * finishing touch rather than the thing the Simplify slider is visibly doing — so it waits until
+ * the controls stop moving.
+ */
+function runCheapPass(image: ImageState, current: Params, settled: boolean): void {
   const started = performance.now();
+  const { width, height } = image.source;
 
   // Hiding the darks is a preview toggle, not an edit. Nothing has an `L` below zero, so a dark
   // boundary at zero matches nothing and every dark pixel falls into the mid zone — while the
@@ -140,12 +170,22 @@ function runCheapPass(image: ImageState, current: Params): void {
     : { dark: 0, light: current.cuts.light };
   thresholdL(image.lab.L, applied, image.labels);
 
-  if (current.greyscale) {
-    renderFlat(image.labels, ZONE_L, image.output);
-  } else {
-    renderZones(image.labels, zoneColoursOf(image), image.output);
+  let labels = image.labels;
+  if (current.simplify > 0) {
+    const settings = simplifySettings(current.simplify, width, height);
+    majorityFilter(labels, width, height, settings.radius, image.scratch, image.simplified);
+    labels = image.simplified;
+    if (settled) {
+      absorbSmallRegions(labels, width, height, settings.minArea, image.scratch, labels);
+    }
   }
-  drawPixels(studyCanvas, image.output, image.source.width, image.source.height);
+
+  if (current.greyscale) {
+    renderFlat(labels, ZONE_L, image.output);
+  } else {
+    renderZones(labels, zoneColoursOf(image), image.output);
+  }
+  drawPixels(studyCanvas, image.output, width, height);
 
   drawHistogram(histogramCanvas, image.hist, [
     { from: 0, to: applied.dark, l: ZONE_L[0]! },
@@ -153,7 +193,13 @@ function runCheapPass(image: ImageState, current: Params): void {
     { from: applied.light, to: 100, l: ZONE_L[2]! },
   ]);
 
-  recordCheapPassTime(performance.now() - started);
+  recordCheapPassTime(performance.now() - started, settled);
+}
+
+/** Squinting is simulated as a blur on the displayed photo, scaled to how large it is drawn. */
+function applySquint(current: Params): void {
+  const blur = current.squint * SQUINT_MAX_BLUR_FRACTION * originalCanvas.clientWidth;
+  originalCanvas.style.filter = blur > 0 ? `blur(${blur.toFixed(1)}px)` : '';
 }
 
 /**
@@ -161,8 +207,12 @@ function runCheapPass(image: ImageState, current: Params): void {
  * NOTES.md. Dev builds only.
  */
 const cheapPassTimes: number[] = [];
-function recordCheapPassTime(ms: number): void {
+function recordCheapPassTime(ms: number, settled: boolean): void {
   if (!import.meta.env.DEV) {
+    return;
+  }
+  if (settled) {
+    console.debug(`settled pass: ${ms.toFixed(1)}ms`);
     return;
   }
   cheapPassTimes.push(ms);
@@ -172,21 +222,29 @@ function recordCheapPassTime(ms: number): void {
     const worst = sorted[sorted.length - 1]!;
     console.debug(
       `cheap pass over 30 frames: median ${median.toFixed(1)}ms, worst ${worst.toFixed(1)}ms ` +
-        `at ${state?.source.width}x${state?.source.height}`,
+        `at ${state?.source.width}x${state?.source.height}, simplify ${params.simplify}`,
     );
     cheapPassTimes.length = 0;
   }
 }
 
 let pendingFrame = 0;
+let settleTimer = 0;
 function scheduleRender(): void {
+  window.clearTimeout(settleTimer);
+  settleTimer = window.setTimeout(() => {
+    if (state && params.simplify > 0) {
+      runCheapPass(state, params, true);
+    }
+  }, SETTLE_DELAY_MS);
+
   if (pendingFrame !== 0) {
     return;
   }
   pendingFrame = requestAnimationFrame(() => {
     pendingFrame = 0;
     if (state) {
-      runCheapPass(state, params);
+      runCheapPass(state, params, false);
     }
   });
 }
@@ -226,6 +284,20 @@ const controls = bindControls({
     valueBar.setDarkActive(on);
     scheduleRender();
   },
+  onSimplify: (strength) => {
+    params = { ...params, simplify: strength };
+    scheduleRender();
+  },
+  onSquint: (strength) => {
+    params = { ...params, squint: strength };
+    applySquint(params);
+  },
+  onView: (view) => {
+    params = { ...params, view };
+    // The panels resize, so both the study's fit and the blur's scale change with them.
+    applySquint(params);
+    scheduleRender();
+  },
   onReset: () => {
     if (!state) {
       return;
@@ -257,11 +329,16 @@ async function loadFile(file: Blob): Promise<void> {
   // A photo opens on the suggestion, so the painter sees a usable study without touching a slider.
   params = { ...params, cuts: state.suggested };
   showCuts();
-  runCheapPass(state, params);
+  applySquint(params);
+  runCheapPass(state, params, true);
 }
 
+controls.showView(params.view);
 showCuts();
 
-// The value bar is drawn at device pixel ratio against its CSS width, and the panels relayout, so
-// a resize needs a redraw to stay crisp.
-window.addEventListener('resize', scheduleRender);
+// The value bar is drawn at device pixel ratio against its CSS width, the panels relayout, and the
+// squint blur is scaled to the displayed photo — all three need a resize to redraw.
+window.addEventListener('resize', () => {
+  applySquint(params);
+  scheduleRender();
+});

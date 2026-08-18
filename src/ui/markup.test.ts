@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest';
 import markup from '../../index.html?raw';
 import mainSource from '../main.ts?raw';
 import controlsSource from './controls.ts?raw';
+import gesturesSource from './gestures.ts?raw';
 import sheetsSource from './sheets.ts?raw';
 import valueBarSource from './valuebar.ts?raw';
 
@@ -43,7 +44,13 @@ function duplicates(values: readonly string[]): string[] {
 
 /** Every id the TypeScript demands via `requireElement` / `requireCanvas`. */
 function requiredIds(): string[] {
-  return [mainSource, controlsSource, sheetsSource, valueBarSource].flatMap((source) =>
+  return [
+    mainSource,
+    controlsSource,
+    gesturesSource,
+    sheetsSource,
+    valueBarSource,
+  ].flatMap((source) =>
     [...source.matchAll(/require(?:Element|Canvas)\(\s*'([^']+)'/g)].map((match) => match[1]!),
   );
 }

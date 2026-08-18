@@ -46,6 +46,8 @@ export interface Controls {
   /** Reflect the dark preview being switched on by something other than its own checkbox. */
   showDarksState: (on: boolean) => void;
   showView: (view: View) => void;
+  /** Move to the next or previous view, skipping any not currently on offer. */
+  stepView: (delta: 1 | -1) => void;
   /** Once a photo is loaded, the load button becomes a replace button. */
   showLoaded: (loaded: boolean) => void;
   /** The one line of prose in the photo dock: what the model is doing, or what it cost. */
@@ -173,7 +175,7 @@ export function bindControls(handlers: ControlHandlers): Controls {
     handlers.onSquint(strength);
   });
 
-  let current: View = 'study';
+  let current: View = 'photo';
 
   const showView = (view: View): void => {
     current = view;
@@ -208,6 +210,10 @@ export function bindControls(handlers: ControlHandlers): Controls {
   );
   const bothButton = viewButtons.find((button) => button.dataset['view'] === 'both');
 
+  /** In switch order, and only what the viewport can actually show. */
+  const availableViews = (): View[] =>
+    roomForBoth.matches ? ['photo', 'study', 'both'] : ['photo', 'study'];
+
   const offerBoth = (): void => {
     if (bothButton) {
       bothButton.hidden = !roomForBoth.matches;
@@ -237,6 +243,16 @@ export function bindControls(handlers: ControlHandlers): Controls {
       showDarksInput.checked = on;
     },
     showView,
+    stepView: (delta) => {
+      const views = availableViews();
+      const from = views.indexOf(current);
+      // Wraps, so a repeated flick in one direction keeps cycling rather than sticking at an end.
+      const next = views[(from + delta + views.length) % views.length];
+      if (next !== undefined && next !== current) {
+        showView(next);
+        handlers.onView(next);
+      }
+    },
     showLoaded: (loaded) => {
       // The label is visually hidden behind an icon, so it is also the tooltip.
       const text = loaded ? 'Replace photo' : 'Load photo';

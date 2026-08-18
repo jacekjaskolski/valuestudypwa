@@ -8,7 +8,9 @@
  * That non-modality is why an outside tap does not dismiss it: the nearest thing outside the
  * sheet is the value bar, and dragging a boundary must not close the panel you were reading. The
  * ways out are the same tool again, another tool, Escape, or a tap on the image — the last being
- * a plain "get out of the way" that costs nothing to discover and nothing to undo.
+ * a plain "get out of the way" that costs nothing to discover and nothing to undo. The tap is
+ * recognised in `gestures.ts`, which is also where a swipe is, so that flicking between the photo
+ * and the study does not count as a tap and close the sheet.
  */
 
 import { requireElement } from './canvas';
@@ -22,7 +24,6 @@ export function bindSheets(): Sheets {
   const buttons = Array.from(
     document.querySelectorAll<HTMLButtonElement>('.tool[data-sheet]'),
   );
-  const stage = document.querySelector('.stage');
 
   let openId: string | null = null;
 
@@ -83,9 +84,6 @@ export function bindSheets(): Sheets {
       close(true);
     }
   });
-
-  // Tapping the image dismisses the sheet, without stealing focus back to the toolbar.
-  stage?.addEventListener('pointerdown', () => close(false));
 
   show(null, false);
 

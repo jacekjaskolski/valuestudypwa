@@ -1,7 +1,7 @@
 /*
- * A single non-scrolling screen in five rows — app bar, stage, sheet, value bar, toolbar — of
- * which only the stage flexes. The image is the hero; controls are summoned into the sheet when
- * wanted, so nothing permanently occupies space it is not earning.
+ * A single non-scrolling screen in three rows: app bar, stage, and the bottom cluster. Only the
+ * stage flexes. The image is the hero; controls are summoned into a sheet that *floats above* the
+ * cluster rather than occupying a row, so opening a tool never moves or resizes the image.
  *
  * Nothing here has a hue: a coloured interface sitting next to a value study biases how the
  * painter reads the values in it (SPEC.md §7). The ground is a light grey so that the study,
@@ -49,13 +49,10 @@ body {
   overscroll-behavior: none;
 }
 
-/*
- * No gap between rows: each row owns its own spacing, so a row with nothing in it — the sheet,
- * most of the time — contributes no height at all.
- */
+/* No gap between rows: each row owns its own spacing. */
 .app {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   height: 100dvh;
 }
 
@@ -94,48 +91,21 @@ body {
   color: var(--text-dim);
 }
 
-.segmented {
-  display: flex;
-  flex: none;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-
 .segmented__button {
-  padding: 0.4rem 0.7rem;
   border: none;
-  border-left: 1px solid var(--line);
-  background: var(--bg);
+  background: transparent;
   color: var(--text-dim);
   font: inherit;
-  font-size: 12px;
   cursor: pointer;
 }
 
-.segmented__button:first-child {
-  border-left: none;
-}
-
-.segmented__button[aria-pressed="true"] {
-  background: var(--control);
-  color: var(--paper);
+.segmented__button[hidden] {
+  display: none;
 }
 
 .segmented__button:focus-visible {
   outline: 2px solid var(--control);
   outline-offset: -2px;
-}
-
-/*
- * Side by side is offered only where there is room for it, but *where* is decided in
- * `controls.ts`: it hides this button and drops the view back to the study with one media query,
- * rather than CSS hiding the button while TypeScript separately decides the view. Two copies of
- * the same question drift, and when they do the button vanishes while the view stays selected —
- * two images in a space that cannot hold one, which is the bug this layout exists to fix.
- */
-.segmented__button[hidden] {
-  display: none;
 }
 
 .iconbutton {
@@ -176,6 +146,8 @@ body {
 /* --- stage -------------------------------------------------------------- */
 
 .stage {
+  /* The page cannot scroll, so the browser has no use for a drag here — the swipe does. */
+  touch-action: none;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--gap);
@@ -264,13 +236,35 @@ body {
   display: none;
 }
 
-/* --- sheets ------------------------------------------------------------- */
+/* --- bottom cluster ------------------------------------------------------ */
 
 /*
- * One tool's controls at a time, opening above the value bar and toolbar rather than over them,
- * so the primary control and the tool switcher both stay reachable while a sheet is open.
+ * View switch, value bar and toolbar, with the sheet floating above them.
+ *
+ * The sheet is positioned rather than laid out, which is the whole point: as a grid row it pushed
+ * the stage upward, and an image that jumps when a panel opens makes it impossible to judge a
+ * change against what was there before.
+ */
+.dock {
+  position: relative;
+}
+
+.sheets {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  z-index: 3;
+  /* The container spans the stage when empty; only the sheet itself should catch a finger. */
+  pointer-events: none;
+}
+
+/*
+ * One tool's controls at a time, over the foot of the image. The view switch, value bar and
+ * toolbar all stay clear of it, so nothing that matters is ever covered.
  */
 .sheet {
+  pointer-events: auto;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -279,6 +273,7 @@ body {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 0.5rem;
+  box-shadow: 0 -2px 14px rgb(0 0 0 / 0.14);
 }
 
 .sheet[hidden] {
@@ -292,6 +287,37 @@ body {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-dim);
+}
+
+/*
+ * The main control of the app. Full width, at the bottom where a thumb is, in the same place
+ * every time — nobody should ever have to look for it. It was a small segmented control in the
+ * app bar's corner, which is exactly where a main control should not be.
+ */
+.viewswitch {
+  display: flex;
+  gap: 2px;
+  /* Full width on a phone, but a pill spanning a desktop window reads as a banner, not a switch. */
+  width: min(100% - 2 * var(--gap), 32rem);
+  margin: 0 auto var(--gap);
+  padding: 3px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.viewswitch .segmented__button {
+  flex: 1;
+  min-width: 0;
+  min-height: 2.25rem;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.viewswitch .segmented__button[aria-pressed="true"] {
+  background: var(--control);
+  color: var(--paper);
 }
 
 /* --- value bar ---------------------------------------------------------- */

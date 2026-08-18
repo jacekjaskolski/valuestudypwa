@@ -59,6 +59,7 @@ import {
   type SourcePixels,
 } from './ui/canvas';
 import { bindControls, type View } from './ui/controls';
+import { bindStageGestures } from './ui/gestures';
 import { bindSheets } from './ui/sheets';
 import { bindValueBar } from './ui/valuebar';
 
@@ -153,7 +154,7 @@ let params: Params = {
   showDepthMap: false,
   aerial: { start: AERIAL_DEFAULT_START, strength: AERIAL_DEFAULT_STRENGTH },
   distant: { on: false, start: AERIAL_DEFAULT_START, strength: AERIAL_DEFAULT_STRENGTH },
-  view: 'study',
+  view: 'photo',
 };
 
 /** Expensive pass: SPEC.md §4 steps 1–5. Runs once per image. */
@@ -542,6 +543,9 @@ async function loadFile(file: Blob): Promise<void> {
   photoFrame.classList.remove('frame--empty');
   studyFrame.classList.remove('frame--empty');
   controls.showLoaded(true);
+  // Show what was just loaded. Turning it into a study is the painter's decision, not ours.
+  params = { ...params, view: 'photo' };
+  controls.showView('photo');
   // A new photo invalidates the old depth map, and everything that depended on it.
   controls.setDepthAvailable(false);
   params = {
@@ -558,7 +562,16 @@ async function loadFile(file: Blob): Promise<void> {
   runCheapPass(state, params);
 }
 
-bindSheets();
+const sheets = bindSheets();
+
+const stage = document.querySelector('.stage');
+if (stage) {
+  bindStageGestures(stage, {
+    onTap: () => sheets.close(),
+    onSwipe: (direction) => controls.stepView(direction),
+  });
+}
+
 controls.showView(params.view);
 showCuts();
 

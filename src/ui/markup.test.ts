@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest';
 import markup from '../../index.html?raw';
 import mainSource from '../main.ts?raw';
 import controlsSource from './controls.ts?raw';
+import sheetsSource from './sheets.ts?raw';
 import valueBarSource from './valuebar.ts?raw';
 
 /** Every `id="..."` in the markup, in document order. */
@@ -42,7 +43,7 @@ function duplicates(values: readonly string[]): string[] {
 
 /** Every id the TypeScript demands via `requireElement` / `requireCanvas`. */
 function requiredIds(): string[] {
-  return [mainSource, controlsSource, valueBarSource].flatMap((source) =>
+  return [mainSource, controlsSource, sheetsSource, valueBarSource].flatMap((source) =>
     [...source.matchAll(/require(?:Element|Canvas)\(\s*'([^']+)'/g)].map((match) => match[1]!),
   );
 }
@@ -60,6 +61,30 @@ describe('index.html', () => {
     const present = new Set(ids());
     const missing = requiredIds().filter((id) => !present.has(id));
     expect(missing).toEqual([]);
+  });
+
+  it('gives every toolbar button a sheet, and every sheet a button', () => {
+    // The toolbar and the sheets are wired by id through `data-sheet`. A typo in either would be
+    // silent: the button would simply do nothing, or a panel would exist that nothing can open.
+    const wanted = [...markup.matchAll(/data-sheet="([^"]+)"/g)].map((match) => match[1]!);
+    const present = [...markup.matchAll(/<section[^>]*\sid="(sheet-[^"]+)"/g)].map(
+      (match) => match[1]!,
+    );
+
+    expect(wanted.length).toBeGreaterThan(0);
+    expect([...wanted].sort()).toEqual([...present].sort());
+  });
+
+  it('points each toolbar button aria-controls at the sheet it opens', () => {
+    const buttons = [...markup.matchAll(/<button[^>]*class="tool"[^>]*>/gs)].map(
+      (match) => match[0],
+    );
+    expect(buttons.length).toBeGreaterThan(0);
+    for (const button of buttons) {
+      const sheet = /data-sheet="([^"]+)"/.exec(button)?.[1];
+      const controls = /aria-controls="([^"]+)"/.exec(button)?.[1];
+      expect(controls).toBe(sheet);
+    }
   });
 
   it('looks up something, so the check above cannot pass by finding nothing', () => {

@@ -77,6 +77,7 @@ export function bindControls(handlers: ControlHandlers): Controls {
   const squintValue = requireElement('squintValue', HTMLOutputElement);
   const keepHighlightsInput = requireElement('keepHighlights', HTMLInputElement);
   const loadLabel = requireElement('loadLabel', HTMLSpanElement);
+  const loadButton = requireElement('loadButton', HTMLLabelElement);
   const resetButton = requireElement('reset', HTMLButtonElement);
   const estimateDepthButton = requireElement('estimateDepth', HTMLButtonElement);
   const depthStatus = requireElement('depthStatus', HTMLParagraphElement);
@@ -172,7 +173,10 @@ export function bindControls(handlers: ControlHandlers): Controls {
     handlers.onSquint(strength);
   });
 
+  let current: View = 'study';
+
   const showView = (view: View): void => {
+    current = view;
     app.dataset['view'] = view;
     for (const button of viewButtons) {
       button.setAttribute('aria-pressed', String(button.dataset['view'] === view));
@@ -188,6 +192,33 @@ export function bindControls(handlers: ControlHandlers): Controls {
       }
     });
   }
+
+  /*
+   * Side by side is only offered where there is room, and this is the only place that decides it:
+   * the button is hidden from here rather than by a matching media query in the stylesheet. Two
+   * copies of the same question drift, and when they do the button disappears while the view stays
+   * selected — two images in a space that cannot hold one, which is the failure this layout exists
+   * to fix.
+   *
+   * The height condition is what keeps a phone in landscape out. It is wide enough on its own, but
+   * a stage barely 200px tall does not want dividing in two.
+   */
+  const roomForBoth = window.matchMedia(
+    '(min-width: 720px) and (min-height: 520px) and (min-aspect-ratio: 1/1)',
+  );
+  const bothButton = viewButtons.find((button) => button.dataset['view'] === 'both');
+
+  const offerBoth = (): void => {
+    if (bothButton) {
+      bothButton.hidden = !roomForBoth.matches;
+    }
+    if (current === 'both' && !roomForBoth.matches) {
+      showView('study');
+      handlers.onView('study');
+    }
+  };
+  roomForBoth.addEventListener('change', offerBoth);
+  offerBoth();
 
   simplifyValue.textContent = formatStrength(Number(simplifyInput.value) / 100);
   squintValue.textContent = formatStrength(Number(squintInput.value) / 100);
@@ -207,7 +238,10 @@ export function bindControls(handlers: ControlHandlers): Controls {
     },
     showView,
     showLoaded: (loaded) => {
-      loadLabel.textContent = loaded ? 'Replace photo' : 'Load photo';
+      // The label is visually hidden behind an icon, so it is also the tooltip.
+      const text = loaded ? 'Replace photo' : 'Load photo';
+      loadLabel.textContent = text;
+      loadButton.title = text;
     },
     showDepthStatus: (message) => {
       depthStatus.textContent = message;

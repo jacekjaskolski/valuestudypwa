@@ -59,6 +59,7 @@ import {
   type SourcePixels,
 } from './ui/canvas';
 import { bindControls, type View } from './ui/controls';
+import { bindSheets } from './ui/sheets';
 import { bindValueBar } from './ui/valuebar';
 
 /**
@@ -152,7 +153,7 @@ let params: Params = {
   showDepthMap: false,
   aerial: { start: AERIAL_DEFAULT_START, strength: AERIAL_DEFAULT_STRENGTH },
   distant: { on: false, start: AERIAL_DEFAULT_START, strength: AERIAL_DEFAULT_STRENGTH },
-  view: 'both',
+  view: 'study',
 };
 
 /** Expensive pass: SPEC.md §4 steps 1–5. Runs once per image. */
@@ -557,6 +558,7 @@ async function loadFile(file: Blob): Promise<void> {
   runCheapPass(state, params);
 }
 
+bindSheets();
 controls.showView(params.view);
 showCuts();
 

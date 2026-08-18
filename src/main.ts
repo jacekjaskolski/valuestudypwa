@@ -8,6 +8,7 @@
 import {
   DEFAULT_PERCENTILE_DARK,
   DEFAULT_PERCENTILE_LIGHT,
+  DEPTH_NEAR_IS_HIGH,
   HISTOGRAM_BINS,
   SQUINT_HIGHLIGHT_BLUR_RATIO,
   SQUINT_MAX_BLUR_FRACTION,
@@ -16,6 +17,7 @@ import {
 } from './constants';
 import { createBlurScratch, squintBlur, type BlurScratch } from './pipeline/blur';
 import { srgbToLab, type LabImage } from './pipeline/color';
+import { normalizeDepth, renderDepth, resampleBilinear } from './pipeline/depth';
 import {
   buildHistogram,
   lToPercentile,
@@ -79,6 +81,11 @@ interface ImageState {
   output: Rgba;
   /** Built on first squint: three more full-size buffers, and most sessions never squint. */
   blurScratch: BlurScratch | null;
+  /**
+   * Normalised depth at working resolution, 1 = farthest, or null until it has been estimated.
+   * Aerial correction (SPEC.md §6.3) will read this; for now it only feeds the Depth view.
+   */
+  depth: Float32Array | null;
 }
 
 interface Params {
@@ -110,6 +117,8 @@ const studyPlaceholder = requireElement('studyPlaceholder', HTMLSpanElement);
 const originalCanvas = requireCanvas('originalCanvas');
 const studyCanvas = requireCanvas('studyCanvas');
 const histogramCanvas = requireCanvas('histogram');
+const depthCanvas = requireCanvas('depthCanvas');
+const depthFrame = requireElement('depthFrame', HTMLDivElement);
 
 let state: ImageState | null = null;
 let params: Params = {
@@ -144,6 +153,7 @@ async function runExpensivePass(file: Blob): Promise<ImageState> {
     scratch: createSimplifyScratch(source.width, source.height),
     output: new Uint8ClampedArray(source.rgba.length),
     blurScratch: null,
+    depth: null,
   };
 }
 
@@ -353,6 +363,7 @@ const controls = bindControls({
     params = { ...params, view };
     scheduleRender();
   },
+  onEstimateDepth: () => void estimateDepthForCurrentImage(),
   onReset: () => {
     if (!state) {
       return;
@@ -362,6 +373,65 @@ const controls = bindControls({
     scheduleRender();
   },
 });
+
+/**
+ * Estimate depth for the loaded photo and show it (SPEC.md §6.2).
+ *
+ * Deliberately behind a button rather than automatic: the first run downloads tens of megabytes.
+ * The model is imported dynamically so none of it is fetched, parsed or cached until asked for.
+ *
+ * Every failure path leaves the rest of the app untouched. Depth is an enhancement, not a
+ * dependency — if this never succeeds, the study is exactly what it was.
+ */
+async function estimateDepthForCurrentImage(): Promise<void> {
+  const image = state;
+  if (!image) {
+    controls.showDepthStatus('Load a photo first.');
+    return;
+  }
+
+  controls.setDepthBusy(true);
+  controls.showDepthStatus('Loading model…');
+
+  try {
+    const { estimateDepth } = await import('./model/depth');
+    const { width, height } = image.source;
+
+    const result = await estimateDepth(image.source.rgba, width, height, (progress) => {
+      controls.showDepthStatus(
+        progress.fraction === null
+          ? 'Loading model…'
+          : `Downloading model… ${Math.round(progress.fraction * 100)}%`,
+      );
+    });
+
+    // Normalise at the model's own resolution, then stretch to ours: the range belongs to the
+    // model's output, and resampling first would blur the extremes that define it.
+    const normalized = new Float32Array(result.width * result.height);
+    normalizeDepth(result.raw, DEPTH_NEAR_IS_HIGH, normalized);
+
+    const full = new Float32Array(width * height);
+    resampleBilinear(normalized, result.width, result.height, full, width, height);
+    image.depth = full;
+
+    const pixels = new Uint8ClampedArray(width * height * 4);
+    renderDepth(full, pixels);
+    drawPixels(depthCanvas, pixels, width, height);
+    depthFrame.classList.remove('frame--empty');
+
+    controls.showDepthStatus(
+      `${result.device}, ${Math.round(result.ms)}ms, model output ` +
+        `${result.width}×${result.height}. Distance should read white.`,
+    );
+  } catch (error) {
+    controls.showDepthStatus(
+      'Depth estimation failed. The study is unaffected — see the console.',
+    );
+    console.error(error);
+  } finally {
+    controls.setDepthBusy(false);
+  }
+}
 
 async function loadFile(file: Blob): Promise<void> {
   try {
@@ -378,7 +448,9 @@ async function loadFile(file: Blob): Promise<void> {
   drawPhoto(state, params);
   photoFrame.classList.remove('frame--empty');
   studyFrame.classList.remove('frame--empty');
+  depthFrame.classList.add('frame--empty');
   controls.showLoaded(true);
+  controls.showDepthStatus('Not estimated for this photo yet.');
 
   // A photo opens on the suggestion, so the painter sees a usable study without touching a slider.
   params = { ...params, cuts: state.suggested };

@@ -154,3 +154,34 @@ export const SQUINT_BLUR_DETAIL = 1;
 
 /** The most the image may be shrunk before blurring, whatever the radius. */
 export const SQUINT_MAX_REDUCTION = 8;
+
+/* --- depth estimation (SPEC.md §6.2) --------------------------------------
+ * Depth is an enhancement, not a dependency: if any of this fails the app carries on with the
+ * correction switched off.
+ */
+
+/**
+ * The depth model. **Small only** — it is Apache 2.0, while the base and large variants are
+ * cc-by-nc-4.0 and cannot be used here (SPEC.md §3).
+ */
+export const DEPTH_MODEL = 'onnx-community/depth-anything-v2-small';
+
+/**
+ * Weight precision, per backend. The full-precision file is 99MB, which is far past what an iOS
+ * PWA should be asked to cache; these are the quantised ones.
+ *
+ * `q8` is 27MB and runs anywhere. `q4f16` is 19MB but needs the half-precision support that comes
+ * with WebGPU. Raising precision costs download size and memory; lowering it costs detail in the
+ * depth map, which shows up as blocky or hesitant boundaries between planes.
+ */
+export const DEPTH_DTYPE_WASM = 'q8';
+export const DEPTH_DTYPE_WEBGPU = 'q4f16';
+
+/**
+ * Whether the model's own numbers run high for *near*.
+ *
+ * Depth Anything outputs inverse depth, so this should be true — but SPEC.md §6.2 asks for it to
+ * be verified against a real image rather than assumed, which is what the Depth view is for. If
+ * distance comes out black instead of white, this is the one thing to flip.
+ */
+export const DEPTH_NEAR_IS_HIGH = true;

@@ -15,6 +15,7 @@
           <button type="button" class="segmented__button" data-view="both">Both</button>
           <button type="button" class="segmented__button" data-view="photo">Photo</button>
           <button type="button" class="segmented__button" data-view="study">Study</button>
+          <button type="button" class="segmented__button" data-view="depth">Depth</button>
         </div>
       </header>
 
@@ -74,6 +75,27 @@
           </div>
           <figcaption class="panel__label">Study</figcaption>
         </figure>
+
+        <figure class="panel panel--depth">
+          <div class="frame frame--empty" id="depthFrame">
+            <canvas id="depthCanvas" class="frame__canvas"></canvas>
+            <span class="frame__placeholder" id="depthPlaceholder">
+              Depth map appears here
+            </span>
+          </div>
+          <figcaption class="panel__label">Depth — far is white</figcaption>
+        </figure>
+
+        <section class="dock dock--depth" aria-label="Depth controls">
+          <p class="status" id="depthStatus">
+            Estimating depth downloads a model, around 27&nbsp;MB, once per browser.
+          </p>
+          <div class="row">
+            <button type="button" id="estimateDepth" class="button button--end">
+              Estimate depth
+            </button>
+          </div>
+        </section>
 
         <section class="dock dock--study" aria-label="Study controls">
           <div class="readout">

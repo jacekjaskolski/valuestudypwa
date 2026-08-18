@@ -9,10 +9,10 @@
 import { requireElement } from './canvas';
 
 /** Which panels are on screen. Controls that make no sense for the view are hidden by CSS. */
-export type View = 'both' | 'photo' | 'study';
+export type View = 'both' | 'photo' | 'study' | 'depth';
 
 function isView(value: string | null): value is View {
-  return value === 'both' || value === 'photo' || value === 'study';
+  return value === 'both' || value === 'photo' || value === 'study' || value === 'depth';
 }
 
 export interface ControlHandlers {
@@ -25,6 +25,7 @@ export interface ControlHandlers {
   onSquint: (strength: number) => void;
   onKeepHighlights: (on: boolean) => void;
   onView: (view: View) => void;
+  onEstimateDepth: () => void;
   onReset: () => void;
 }
 
@@ -40,6 +41,10 @@ export interface Controls {
   showView: (view: View) => void;
   /** Once a photo is loaded, the load button becomes a replace button. */
   showLoaded: (loaded: boolean) => void;
+  /** The one line of prose under the depth panel: what the model is doing, or what it cost. */
+  showDepthStatus: (message: string) => void;
+  /** Stops a second run being started while one is in flight. */
+  setDepthBusy: (busy: boolean) => void;
 }
 
 /** A strength slider reads as a plain percentage, and says "off" when it is doing nothing. */
@@ -59,6 +64,8 @@ export function bindControls(handlers: ControlHandlers): Controls {
   const keepHighlightsInput = requireElement('keepHighlights', HTMLInputElement);
   const loadLabel = requireElement('loadLabel', HTMLSpanElement);
   const resetButton = requireElement('reset', HTMLButtonElement);
+  const estimateDepthButton = requireElement('estimateDepth', HTMLButtonElement);
+  const depthStatus = requireElement('depthStatus', HTMLParagraphElement);
   const darkValue = requireElement('cutDarkValue', HTMLOutputElement);
   const lightValue = requireElement('cutLightValue', HTMLOutputElement);
   const viewButtons = Array.from(
@@ -78,6 +85,7 @@ export function bindControls(handlers: ControlHandlers): Controls {
   greyscaleInput.addEventListener('change', () => handlers.onGreyscale(greyscaleInput.checked));
   showDarksInput.addEventListener('change', () => handlers.onShowDarks(showDarksInput.checked));
   resetButton.addEventListener('click', () => handlers.onReset());
+  estimateDepthButton.addEventListener('click', () => handlers.onEstimateDepth());
 
   simplifyInput.addEventListener('input', () => {
     const strength = Number(simplifyInput.value) / 100;
@@ -126,6 +134,12 @@ export function bindControls(handlers: ControlHandlers): Controls {
     showView,
     showLoaded: (loaded) => {
       loadLabel.textContent = loaded ? 'Replace photo' : 'Load photo';
+    },
+    showDepthStatus: (message) => {
+      depthStatus.textContent = message;
+    },
+    setDepthBusy: (busy) => {
+      estimateDepthButton.disabled = busy;
     },
   };
 }

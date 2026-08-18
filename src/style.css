@@ -156,10 +156,47 @@ body {
     "study-dock";
 }
 
+/* Depth is judged against the photo it came from, so it is shown beside it, never alone. */
+.app[data-view="depth"] .workspace {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "photo"
+    "photo-dock"
+    "depth"
+    "depth-dock";
+}
+
+@media (min-aspect-ratio: 1/1) {
+  .app[data-view="depth"] .workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "photo depth"
+      "photo-dock depth-dock";
+  }
+}
+
+/* Only the depth view shows the depth panel; every other view hides what it does not use. */
+.panel--depth,
+.dock--depth {
+  display: none;
+}
+
+.app[data-view="depth"] .panel--depth {
+  display: flex;
+}
+
+.app[data-view="depth"] .dock--depth {
+  display: flex;
+}
+
 .app[data-view="photo"] .panel--study,
 .app[data-view="photo"] .dock--study,
 .app[data-view="study"] .panel--photo,
-.app[data-view="study"] .dock--photo {
+.app[data-view="study"] .dock--photo,
+.app[data-view="depth"] .panel--study,
+.app[data-view="depth"] .dock--study {
   display: none;
 }
 
@@ -177,6 +214,14 @@ body {
 
 .dock--study {
   grid-area: study-dock;
+}
+
+.panel--depth {
+  grid-area: depth;
+}
+
+.dock--depth {
+  grid-area: depth-dock;
 }
 
 .panel {
@@ -253,6 +298,13 @@ body {
 }
 
 /* --- controls ----------------------------------------------------------- */
+
+/* A quiet line of prose in a dock: what the model is doing, or what it cost. */
+.status {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 12px;
+}
 
 .readout {
   display: flex;

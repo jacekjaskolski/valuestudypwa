@@ -485,8 +485,12 @@ async function estimateDepthForCurrentImage(): Promise<void> {
     );
     drawPhoto(image, params);
   } catch (error) {
+    // Put the actual reason on screen. A generic message is useless on a phone or tablet, where
+    // there is no console to look in and the only report available is what the app says.
+    const reason = error instanceof Error ? error.message : String(error);
+    const { backendReport } = await import('./model/depth');
     controls.showDepthStatus(
-      'Depth estimation failed. The study is unaffected — see the console.',
+      `Depth failed: ${reason.slice(0, 200)} [${backendReport()}]. The study is unaffected.`,
     );
     console.error(error);
   } finally {

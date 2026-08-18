@@ -53,3 +53,13 @@ is empirical and the reasoning is easy to lose.
 
 Built through step 6 of `SPEC.md` §9. Still to come: depth-based aerial perspective correction, and
 the PWA shell that makes it installable and offline-capable.
+
+## Licence
+
+© 2026 Jacek Jaskólski. All rights reserved.
+
+This source is published for reference. It is **not** open source, and no permission is granted to
+use, copy, modify, or distribute it. Viewing and forking within GitHub is allowed by GitHub's terms
+of service; nothing beyond that is.
+
+A commercial product will be built on this work, which is why no licence is offered.

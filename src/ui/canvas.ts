@@ -83,6 +83,47 @@ export function drawPixels(
   context2d(canvas).putImageData(new ImageData(pixels, width, height), 0, 0);
 }
 
+/**
+ * Scratch canvas the scaled draw goes through. Kept between calls: resizing a canvas reallocates
+ * its backing store, and this one is resized on every squint frame.
+ */
+let scaler: HTMLCanvasElement | null = null;
+
+/**
+ * Paint RGBA pixels into a canvas, stretching them to a different size.
+ *
+ * Used for the squint preview, which is computed at reduced resolution because a blur throws away
+ * the detail anyway. The canvas does the upscale, which is free next to doing it in a loop, and
+ * the target keeps its working-resolution size so the photo and the study stay laid out alike.
+ */
+export function drawPixelsScaled(
+  canvas: HTMLCanvasElement,
+  pixels: Rgba,
+  sourceWidth: number,
+  sourceHeight: number,
+  width: number,
+  height: number,
+): void {
+  scaler ??= document.createElement('canvas');
+  scaler.width = sourceWidth;
+  scaler.height = sourceHeight;
+  context2d(scaler).putImageData(
+    new ImageData(pixels.subarray(0, sourceWidth * sourceHeight * 4), sourceWidth, sourceHeight),
+    0,
+    0,
+  );
+
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+  const ctx = context2d(canvas);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.clearRect(0, 0, width, height);
+  ctx.drawImage(scaler, 0, 0, width, height);
+}
+
 function cssVariable(name: string, fallback: string): string {
   const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   return value === '' ? fallback : value;

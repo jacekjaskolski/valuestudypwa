@@ -14,6 +14,7 @@ import {
   WORKING_RESOLUTION,
   ZONE_L,
 } from './constants';
+import { createBlurScratch, squintBlur, type BlurScratch } from './pipeline/blur';
 import { srgbToLab, type LabImage } from './pipeline/color';
 import {
   buildHistogram,
@@ -44,6 +45,7 @@ import {
   decodeToWorkingSize,
   drawHistogram,
   drawPixels,
+  drawPixelsScaled,
   requireCanvas,
   requireElement,
   type SourcePixels,
@@ -75,6 +77,8 @@ interface ImageState {
   simplified: ZoneMap;
   scratch: SimplifyScratch;
   output: Rgba;
+  /** Built on first squint: three more full-size buffers, and most sessions never squint. */
+  blurScratch: BlurScratch | null;
 }
 
 interface Params {
@@ -106,9 +110,6 @@ const studyPlaceholder = requireElement('studyPlaceholder', HTMLSpanElement);
 const originalCanvas = requireCanvas('originalCanvas');
 const studyCanvas = requireCanvas('studyCanvas');
 const histogramCanvas = requireCanvas('histogram');
-const squintSoft = requireElement('squintSoft', SVGFEGaussianBlurElement);
-const squintHighlightSoft = requireElement('squintHighlightSoft', SVGFEGaussianBlurElement);
-const squintCrisp = requireElement('squintCrisp', SVGFEGaussianBlurElement);
 
 let state: ImageState | null = null;
 let params: Params = {
@@ -141,6 +142,7 @@ async function runExpensivePass(file: Blob): Promise<ImageState> {
     simplified: new Uint8Array(size),
     scratch: createSimplifyScratch(source.width, source.height),
     output: new Uint8ClampedArray(source.rgba.length),
+    blurScratch: null,
   };
 }
 
@@ -198,29 +200,50 @@ function runCheapPass(image: ImageState, current: Params): void {
 }
 
 /**
- * Squinting is simulated as a blur on the displayed photo, scaled to how large it is drawn.
+ * Draw the reference photo, squinted if the slider asks for it.
  *
- * Both variants are SVG filters rather than a CSS `blur()`, so that the result is cut back to the
- * photo's own rectangle instead of spilling a halo onto the ground, and so the edges stay opaque
- * rather than fading out where the blur samples past them. See the filter definitions in
- * `index.html`.
+ * The blur is computed over the photo's own pixels rather than applied as a CSS or SVG filter, so
+ * that it clamps at the edges instead of blurring against the transparency outside them. A filter
+ * either fades the border out or leaves a ring of sharp pixels around it; both are artifacts right
+ * where a painter is reading the composition. Being the same size as the source, the result also
+ * needs no cropping afterwards. See `pipeline/blur.ts`.
+ *
+ * The sigma is a fraction of the *source* width, so squinting means the same thing regardless of
+ * how large the photo happens to be drawn.
  */
-function applySquint(current: Params): void {
-  const blur = current.squint * SQUINT_MAX_BLUR_FRACTION * originalCanvas.clientWidth;
-  if (blur <= 0) {
-    originalCanvas.style.filter = '';
+function drawPhoto(image: ImageState, current: Params): void {
+  const { rgba, width, height } = image.source;
+
+  if (current.squint <= 0) {
+    drawPixels(originalCanvas, rgba, width, height);
     return;
   }
-  if (current.keepHighlights) {
-    squintHighlightSoft.setAttribute('stdDeviation', blur.toFixed(2));
-    squintCrisp.setAttribute(
-      'stdDeviation',
-      (blur * SQUINT_HIGHLIGHT_BLUR_RATIO).toFixed(2),
+
+  image.blurScratch ??= createBlurScratch(rgba.length);
+  const started = performance.now();
+  const blurred = squintBlur(
+    rgba,
+    width,
+    height,
+    current.squint * SQUINT_MAX_BLUR_FRACTION * width,
+    current.keepHighlights,
+    SQUINT_HIGHLIGHT_BLUR_RATIO,
+    image.blurScratch,
+  );
+  drawPixelsScaled(
+    originalCanvas,
+    blurred.pixels,
+    blurred.width,
+    blurred.height,
+    width,
+    height,
+  );
+
+  if (import.meta.env.DEV) {
+    console.debug(
+      `squint: ${(performance.now() - started).toFixed(1)}ms at ` +
+        `${blurred.width}x${blurred.height}`,
     );
-    originalCanvas.style.filter = 'url(#squintHighlights)';
-  } else {
-    squintSoft.setAttribute('stdDeviation', blur.toFixed(2));
-    originalCanvas.style.filter = 'url(#squintPlain)';
   }
 }
 
@@ -244,6 +267,19 @@ function recordCheapPassTime(ms: number): void {
     );
     cheapPassTimes.length = 0;
   }
+}
+
+let pendingPhotoFrame = 0;
+function schedulePhoto(): void {
+  if (pendingPhotoFrame !== 0) {
+    return;
+  }
+  pendingPhotoFrame = requestAnimationFrame(() => {
+    pendingPhotoFrame = 0;
+    if (state) {
+      drawPhoto(state, params);
+    }
+  });
 }
 
 let pendingFrame = 0;
@@ -300,16 +336,14 @@ const controls = bindControls({
   },
   onSquint: (strength) => {
     params = { ...params, squint: strength };
-    applySquint(params);
+    schedulePhoto();
   },
   onKeepHighlights: (on) => {
     params = { ...params, keepHighlights: on };
-    applySquint(params);
+    schedulePhoto();
   },
   onView: (view) => {
     params = { ...params, view };
-    // The panels resize, so both the study's fit and the blur's scale change with them.
-    applySquint(params);
     scheduleRender();
   },
   onReset: () => {
@@ -334,8 +368,7 @@ async function loadFile(file: Blob): Promise<void> {
     return;
   }
 
-  const { rgba, width, height } = state.source;
-  drawPixels(originalCanvas, rgba, width, height);
+  drawPhoto(state, params);
   photoFrame.classList.remove('frame--empty');
   studyFrame.classList.remove('frame--empty');
   controls.showLoaded(true);
@@ -343,16 +376,12 @@ async function loadFile(file: Blob): Promise<void> {
   // A photo opens on the suggestion, so the painter sees a usable study without touching a slider.
   params = { ...params, cuts: state.suggested };
   showCuts();
-  applySquint(params);
   runCheapPass(state, params);
 }
 
 controls.showView(params.view);
 showCuts();
 
-// The value bar is drawn at device pixel ratio against its CSS width, the panels relayout, and the
-// squint blur is scaled to the displayed photo — all three need a resize to redraw.
-window.addEventListener('resize', () => {
-  applySquint(params);
-  scheduleRender();
-});
+// The value bar is drawn at device pixel ratio against its CSS width, so a resize needs a redraw
+// to stay crisp. The photo does not: its blur is in source pixels, not displayed ones.
+window.addEventListener('resize', scheduleRender);

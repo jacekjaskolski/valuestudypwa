@@ -142,3 +142,15 @@ export const SQUINT_MAX_BLUR_FRACTION = 0.025;
  * Lower: bright accents stay hard-edged and the picture looks masked rather than squinted.
  */
 export const SQUINT_HIGHLIGHT_BLUR_RATIO = 0.3;
+
+/**
+ * How many pixels the blur must still span after the image is shrunk to compute it.
+ *
+ * A blur destroys everything finer than its own radius, so it is computed at reduced resolution
+ * and scaled back up. Higher: less shrinking, so more work and a slower Squint slider. Lower: more
+ * shrinking, until the reduced image is too coarse for the blur and the upscale shows as blocking.
+ */
+export const SQUINT_BLUR_DETAIL = 1;
+
+/** The most the image may be shrunk before blurring, whatever the radius. */
+export const SQUINT_MAX_REDUCTION = 8;

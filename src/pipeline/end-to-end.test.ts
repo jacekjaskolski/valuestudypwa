@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ZONE_L } from '../constants';
+import { blurReduction, createBlurScratch, squintBlur } from './blur';
 import { srgbToLab } from './color';
 import { buildHistogram, percentilesToCuts, suggestPercentiles } from './histogram';
 import { buildZoneColours, renderFlat, renderZones } from './render';
@@ -102,6 +103,14 @@ describe('whole pipeline on a synthetic photo', () => {
       absorbSmallRegions(simplified, width, height, settings.minArea, scratch, absorbed),
     );
 
+    const blurScratch = createBlurScratch(rgba.length);
+    const squintTimes = [1, 2, 4, 12, 25.6].map((sigma) => ({
+      sigma,
+      factor: blurReduction(sigma),
+      plain: median(() => squintBlur(rgba, width, height, sigma, false, 0.3, blurScratch)),
+      kept: median(() => squintBlur(rgba, width, height, sigma, true, 0.3, blurScratch)),
+    }));
+
     const counts = [0, 0, 0];
     for (let i = 0; i < labels.length; i++) {
       counts[labels[i]!]!++;
@@ -122,6 +131,11 @@ describe('whole pipeline on a synthetic photo', () => {
         `simplify radius     ${settings.radius}px, minArea ${Math.round(settings.minArea)}px`,
         `majorityFilter      ${majorityTime.toFixed(1)}ms`,
         `absorbSmallRegions  ${absorbTime.toFixed(1)}ms`,
+        ...squintTimes.map(
+          (t) =>
+            `squint sigma ${String(t.sigma).padEnd(4)} /${t.factor}  ` +
+            `plain ${t.plain.toFixed(1)}ms, keep-highlights ${t.kept.toFixed(1)}ms`,
+        ),
       ].join('\n'),
     );
 

@@ -406,6 +406,19 @@ const valueBar = bindValueBar({
   },
 });
 
+const sheets = bindSheets();
+
+/**
+ * The single place a view change lands: the panels, the tools that act on them, and the render.
+ * Called both by the switch and by a swipe, so the two cannot drift.
+ */
+function applyView(view: View): void {
+  params = { ...params, view };
+  controls.showView(view);
+  sheets.setView(view);
+  scheduleRender();
+}
+
 const controls = bindControls({
   onFile: (file) => void loadFile(file),
   onGreyscale: (on) => {
@@ -433,10 +446,7 @@ const controls = bindControls({
     params = { ...params, keepHighlights: on };
     schedulePhoto();
   },
-  onView: (view) => {
-    params = { ...params, view };
-    scheduleRender();
-  },
+  onView: applyView,
   onEstimateDepth: () => void estimateDepthForCurrentImage(),
   onShowDepthMap: (on) => {
     params = { ...params, showDepthMap: on };
@@ -544,8 +554,7 @@ async function loadFile(file: Blob): Promise<void> {
   studyFrame.classList.remove('frame--empty');
   controls.showLoaded(true);
   // Show what was just loaded. Turning it into a study is the painter's decision, not ours.
-  params = { ...params, view: 'photo' };
-  controls.showView('photo');
+  applyView('photo');
   // A new photo invalidates the old depth map, and everything that depended on it.
   controls.setDepthAvailable(false);
   params = {
@@ -562,17 +571,17 @@ async function loadFile(file: Blob): Promise<void> {
   runCheapPass(state, params);
 }
 
-const sheets = bindSheets();
+bindStageGestures({
+  // Previewing needs one image leaving and one arriving, which the side-by-side view is not.
+  peek: (direction) => {
+    const target = controls.peekView(direction);
+    return params.view === 'both' || target === 'both' ? null : target;
+  },
+  commit: (direction) => controls.stepView(direction),
+  tap: () => sheets.close(),
+});
 
-const stage = document.querySelector('.stage');
-if (stage) {
-  bindStageGestures(stage, {
-    onTap: () => sheets.close(),
-    onSwipe: (direction) => controls.stepView(direction),
-  });
-}
-
-controls.showView(params.view);
+applyView(params.view);
 showCuts();
 
 // The value bar is drawn at device pixel ratio against its CSS width, so a resize needs a redraw

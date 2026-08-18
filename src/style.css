@@ -148,6 +148,8 @@ body {
 .stage {
   /* The page cannot scroll, so the browser has no use for a drag here — the swipe does. */
   touch-action: none;
+  position: relative;
+  overflow: hidden;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--gap);
@@ -162,6 +164,22 @@ body {
 .app[data-view="photo"] .panel--study,
 .app[data-view="study"] .panel--photo {
   display: none;
+}
+
+/*
+ * Mid-drag both panels are on screen, stacked and moved by transform: the one being left behind
+ * follows the finger, the one arriving comes in a screen-width behind it. The selector has to
+ * outrank the rule above, which is why it names the view attribute it is overriding.
+ */
+.app[data-view] .stage--dragging .panel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  will-change: transform;
+}
+
+.stage--settling .panel {
+  transition: transform 160ms ease-out;
 }
 
 .panel {
@@ -443,6 +461,10 @@ body {
   color: var(--text-dim);
   font: inherit;
   cursor: pointer;
+}
+
+.tool[hidden] {
+  display: none;
 }
 
 .tool__label {

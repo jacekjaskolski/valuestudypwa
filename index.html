@@ -243,15 +243,6 @@
           </section>
         </div>
 
-        <!--
-          The main control of the whole app, so it is always in the same place, always full width,
-          and never behind anything: the sheet floats above this cluster, not over it.
-        -->
-        <div class="viewswitch" role="group" aria-label="View">
-          <button type="button" class="segmented__button" data-view="photo">Photo</button>
-          <button type="button" class="segmented__button" data-view="study">Study</button>
-          <button type="button" class="segmented__button" data-view="both">Both</button>
-        </div>
 
         <!--
           The two boundaries are handles on one axis, and the histogram is the background they are
@@ -288,6 +279,7 @@
             type="button"
             class="tool"
             data-sheet="sheet-values"
+          data-scope="study"
             aria-controls="sheet-values"
             aria-expanded="false"
           >
@@ -301,6 +293,7 @@
             type="button"
             class="tool"
             data-sheet="sheet-shapes"
+          data-scope="study"
             aria-controls="sheet-shapes"
             aria-expanded="false"
           >
@@ -315,6 +308,7 @@
             type="button"
             class="tool"
             data-sheet="sheet-squint"
+          data-scope="photo"
             aria-controls="sheet-squint"
             aria-expanded="false"
           >
@@ -329,6 +323,7 @@
             type="button"
             class="tool"
             data-sheet="sheet-depth"
+          data-scope="photo"
             aria-controls="sheet-depth"
             aria-expanded="false"
           >
@@ -339,6 +334,17 @@
             <span class="tool__label">Depth</span>
           </button>
         </nav>
+
+        <!--
+          The main control of the whole app, so it sits at the very bottom where the thumb already
+          is, always full width, and never behind anything. Everything above it belongs to
+          whichever image it has selected.
+        -->
+        <div class="viewswitch" role="group" aria-label="View">
+          <button type="button" class="segmented__button" data-view="photo">Photo</button>
+          <button type="button" class="segmented__button" data-view="study">Study</button>
+          <button type="button" class="segmented__button" data-view="both">Both</button>
+        </div>
       </div>
     </div>
 

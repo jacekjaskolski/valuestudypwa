@@ -18,6 +18,14 @@ import { requireElement } from './canvas';
 export interface Sheets {
   /** Close whatever is open. */
   close: () => void;
+  /**
+   * Show only the tools that act on the image currently being shown, and close a sheet the switch
+   * has just made unreachable.
+   *
+   * Squint and Depth do things to the photo; Values and Shapes do things to the study. Offering
+   * all four whichever is on screen invites adjusting something you cannot see the effect of.
+   */
+  setView: (view: 'photo' | 'study' | 'both') => void;
 }
 
 export function bindSheets(): Sheets {
@@ -85,7 +93,18 @@ export function bindSheets(): Sheets {
     }
   });
 
+  const setView = (view: 'photo' | 'study' | 'both'): void => {
+    for (const button of buttons) {
+      const scope = button.dataset['scope'];
+      button.hidden = view !== 'both' && scope !== undefined && scope !== view;
+    }
+    // Both panels are on screen in the side-by-side view, so every tool applies.
+    if (openId !== null && buttonFor(openId)?.hidden === true) {
+      close(false);
+    }
+  };
+
   show(null, false);
 
-  return { close: () => close(false) };
+  return { close: () => close(false), setView };
 }

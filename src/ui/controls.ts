@@ -48,6 +48,8 @@ export interface Controls {
   showView: (view: View) => void;
   /** Move to the next or previous view, skipping any not currently on offer. */
   stepView: (delta: 1 | -1) => void;
+  /** Where `stepView` would land, without going there — for previewing a swipe. */
+  peekView: (delta: 1 | -1) => View;
   /** Once a photo is loaded, the load button becomes a replace button. */
   showLoaded: (loaded: boolean) => void;
   /** The one line of prose in the photo dock: what the model is doing, or what it cost. */
@@ -243,6 +245,11 @@ export function bindControls(handlers: ControlHandlers): Controls {
       showDarksInput.checked = on;
     },
     showView,
+    peekView: (delta) => {
+      const views = availableViews();
+      const from = views.indexOf(current);
+      return views[(from + delta + views.length) % views.length] ?? current;
+    },
     stepView: (delta) => {
       const views = availableViews();
       const from = views.indexOf(current);

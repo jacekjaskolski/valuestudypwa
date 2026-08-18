@@ -256,17 +256,36 @@ body {
 /* --- controls ----------------------------------------------------------- */
 
 /*
- * A group of controls that only makes sense once something else exists — the aerial sliders need
- * a depth map before they mean anything.
+ * A pair of controls that only makes sense once something else exists — the aerial sliders need a
+ * depth map before they mean anything.
+ *
+ * Side by side and half height: two of these stacked full-size cost more vertical room than the
+ * images can spare on a screen that never scrolls, and a start/strength pair reads as one control
+ * anyway.
  */
 .group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0 var(--gap);
 }
 
 .group[hidden] {
   display: none;
+}
+
+.group .slider__input {
+  height: 1.1rem;
+}
+
+.group .slider__input::-webkit-slider-thumb {
+  width: 0.9rem;
+  height: 0.9rem;
+  margin-top: -0.4rem;
+}
+
+.group .slider__input::-moz-range-thumb {
+  width: 0.9rem;
+  height: 0.9rem;
 }
 
 .check[hidden] {

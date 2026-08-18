@@ -118,7 +118,7 @@ describe('whole pipeline on a synthetic photo', () => {
     );
     const corrected = new Float32Array(width * height);
     const aerialTime = median(() =>
-      liftDistance(lab.L, depth, { start: 0.35, strength: 0.5 }, corrected),
+      liftDistance(lab.L, depth, { start: 0.35, strength: 0.5 }, cuts.dark, corrected),
     );
     const correctedHistTime = median(() => buildHistogram(corrected, 256));
 

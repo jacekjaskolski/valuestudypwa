@@ -203,7 +203,16 @@ function runCheapPass(image: ImageState, current: Params): void {
   let L = image.lab.L;
   let hist = image.hist;
   if (corrected) {
-    liftDistance(image.lab.L, image.depth!, current.distant, image.correctedL);
+    // Restricted to the darks. The boundary used is the painter's own, not the one the "show
+    // darks" preview may have moved to zero — hiding the darks is a display toggle and must not
+    // change what the correction does.
+    liftDistance(
+      image.lab.L,
+      image.depth!,
+      current.distant,
+      current.cuts.dark,
+      image.correctedL,
+    );
     L = image.correctedL;
     hist = buildHistogram(L, HISTOGRAM_BINS);
   }

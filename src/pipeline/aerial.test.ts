@@ -36,19 +36,19 @@ describe('liftDistance', () => {
   it('leaves everything alone at zero strength', () => {
     const L = Float32Array.from([10, 50, 90]);
     const out = new Float32Array(3);
-    liftDistance(L, Float32Array.from([1, 1, 1]), { start: 0, strength: 0 }, out);
+    liftDistance(L, Float32Array.from([1, 1, 1]), { start: 0, strength: 0 }, 100, out);
     expect(Array.from(out)).toEqual([10, 50, 90]);
   });
 
   it('leaves near pixels untouched however strong the correction', () => {
     const out = new Float32Array(1);
-    liftDistance(Float32Array.from([20]), Float32Array.from([0]), settings, out);
+    liftDistance(Float32Array.from([20]), Float32Array.from([0]), settings, 100, out);
     expect(out[0]!).toBe(20);
   });
 
   it('lifts the farthest pixels to the ceiling at full strength', () => {
     const out = new Float32Array(1);
-    liftDistance(Float32Array.from([20]), Float32Array.from([1]), settings, out);
+    liftDistance(Float32Array.from([20]), Float32Array.from([1]), settings, 100, out);
     expect(out[0]!).toBeCloseTo(AERIAL_L_CEILING, 4);
   });
 
@@ -58,6 +58,7 @@ describe('liftDistance', () => {
       Float32Array.from([10, 80]),
       Float32Array.from([1, 1]),
       { start: 0, strength: 0.5 },
+      100,
       out,
     );
     expect(out[0]! - 10).toBeGreaterThan(out[1]! - 80);
@@ -67,7 +68,7 @@ describe('liftDistance', () => {
     const L = Float32Array.from([0, 25, 50, 75, 100]);
     const depth = Float32Array.from([0, 0.25, 0.5, 0.75, 1]);
     const out = new Float32Array(5);
-    liftDistance(L, depth, { start: 0.2, strength: 0.8 }, out);
+    liftDistance(L, depth, { start: 0.2, strength: 0.8 }, 100, out);
     for (let i = 0; i < 5; i++) {
       expect(out[i]!).toBeGreaterThanOrEqual(L[i]!);
     }
@@ -79,16 +80,44 @@ describe('liftDistance', () => {
       Float32Array.from([0, 50, 100]),
       Float32Array.from([1, 1, 1]),
       { start: 0, strength: 1 },
+      100,
       out,
     );
     expect(Array.from(out).every((v) => v >= 0 && v <= 100)).toBe(true);
+  });
+
+  it('leaves anything at or above the limit alone, however far away it is', () => {
+    // A distant mid and a distant light must not move; only the darks are the problem.
+    const L = Float32Array.from([20, 40, 80]);
+    const depth = Float32Array.from([1, 1, 1]);
+    const out = new Float32Array(3);
+    liftDistance(L, depth, { start: 0, strength: 1 }, 40, out);
+    expect(out[0]!).toBeGreaterThan(20);
+    expect(out[1]!).toBe(40);
+    expect(out[2]!).toBe(80);
+  });
+
+  it('can lift a dark clear of the boundary that selected it', () => {
+    // The intended outcome: a distant dark stops being dark.
+    const out = new Float32Array(1);
+    liftDistance(Float32Array.from([15]), Float32Array.from([1]), { start: 0, strength: 0.8 }, 30, out);
+    expect(out[0]!).toBeGreaterThan(30);
+  });
+
+  it('tests the limit against the incoming L, not the lifted one', () => {
+    // Otherwise lifting the first pixel could change the verdict on the next.
+    const L = Float32Array.from([10, 10]);
+    const out = new Float32Array(2);
+    liftDistance(L, Float32Array.from([1, 1]), { start: 0, strength: 1 }, 20, out);
+    expect(out[0]!).toBe(out[1]!);
+    expect(out[0]!).toBeGreaterThan(20);
   });
 
   it('does nothing before the start, so the painter can place the background', () => {
     const L = Float32Array.from([30, 30]);
     const depth = Float32Array.from([0.4, 0.9]);
     const out = new Float32Array(2);
-    liftDistance(L, depth, { start: 0.5, strength: 1 }, out);
+    liftDistance(L, depth, { start: 0.5, strength: 1 }, 100, out);
     expect(out[0]!).toBe(30);
     expect(out[1]!).toBeGreaterThan(30);
   });

@@ -43,19 +43,28 @@ export function distanceRamp(depth: number, start: number): number {
 }
 
 /**
- * Lighten distant pixels, the correction SPEC.md §6.3 specifies.
+ * Lighten distant *dark* pixels, the correction SPEC.md §6.3 specifies.
  *
- * Input: `L` 0–100; `depth` 0–1, 1 = farthest. Output: `out`, 0–100.
+ * Input: `L` 0–100; `depth` 0–1, 1 = farthest; `onlyBelow`, the `L` above which a pixel is left
+ * alone. Output: `out`, 0–100.
  *
  * `L' = L + strength · ramp · (ceiling − L)` — which lifts a far pixel towards the ceiling in
- * proportion to how dark it is and how far away, and leaves near pixels exactly alone. Dark
- * distant planes move a long way, pale ones barely at all, which is what stops a distant hillside
- * competing with the subject for the darkest value in the picture.
+ * proportion to how dark it is and how far away, and leaves near pixels exactly alone.
+ *
+ * `onlyBelow` restricts it to the darks, and is the whole point of the correction rather than a
+ * refinement of it: the problem being solved is background darks competing with the subject, so
+ * distant mids and lights have no business moving. Passing the dark boundary means a distant dark
+ * can be lifted out of the dark zone — which is the intended outcome — while a distant mid stays
+ * exactly where the painter put it.
+ *
+ * The test is against the *incoming* `L`, so lifting a pixel can never drag another one over the
+ * line with it.
  */
 export function liftDistance(
   L: Float32Array,
   depth: Float32Array,
   settings: AerialSettings,
+  onlyBelow: number,
   out: Float32Array,
 ): Float32Array {
   const { start, strength } = settings;
@@ -66,6 +75,10 @@ export function liftDistance(
 
   for (let i = 0; i < L.length; i++) {
     const lightness = L[i]!;
+    if (lightness >= onlyBelow) {
+      out[i] = lightness;
+      continue;
+    }
     const t = strength * distanceRamp(depth[i]!, start);
     const lifted = lightness + t * (AERIAL_L_CEILING - lightness);
     out[i] = lifted < 0 ? 0 : lifted > 100 ? 100 : lifted;

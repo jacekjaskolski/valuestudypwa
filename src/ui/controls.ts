@@ -9,10 +9,10 @@
 import { requireElement } from './canvas';
 
 /** Which panels are on screen. Controls that make no sense for the view are hidden by CSS. */
-export type View = 'both' | 'photo' | 'study' | 'depth';
+export type View = 'both' | 'photo' | 'study';
 
 function isView(value: string | null): value is View {
-  return value === 'both' || value === 'photo' || value === 'study' || value === 'depth';
+  return value === 'both' || value === 'photo' || value === 'study';
 }
 
 export interface ControlHandlers {
@@ -26,6 +26,11 @@ export interface ControlHandlers {
   onKeepHighlights: (on: boolean) => void;
   onView: (view: View) => void;
   onEstimateDepth: () => void;
+  onShowDepthMap: (on: boolean) => void;
+  /** The haze preview on the photo. Both values 0–1. */
+  onAerial: (start: number, strength: number) => void;
+  /** The lightness correction on the study. Both values 0–1. */
+  onDistant: (on: boolean, start: number, strength: number) => void;
   onReset: () => void;
 }
 
@@ -41,10 +46,17 @@ export interface Controls {
   showView: (view: View) => void;
   /** Once a photo is loaded, the load button becomes a replace button. */
   showLoaded: (loaded: boolean) => void;
-  /** The one line of prose under the depth panel: what the model is doing, or what it cost. */
+  /** The one line of prose in the photo dock: what the model is doing, or what it cost. */
   showDepthStatus: (message: string) => void;
+  /**
+   * Download and inference progress. A fraction shows a filled bar, null shows an indeterminate
+   * one, and false hides it.
+   */
+  showDepthProgress: (progress: number | null | false) => void;
   /** Stops a second run being started while one is in flight. */
   setDepthBusy: (busy: boolean) => void;
+  /** Reveals everything that only means something once a depth map exists. */
+  setDepthAvailable: (available: boolean) => void;
 }
 
 /** A strength slider reads as a plain percentage, and says "off" when it is doing nothing. */
@@ -66,6 +78,21 @@ export function bindControls(handlers: ControlHandlers): Controls {
   const resetButton = requireElement('reset', HTMLButtonElement);
   const estimateDepthButton = requireElement('estimateDepth', HTMLButtonElement);
   const depthStatus = requireElement('depthStatus', HTMLParagraphElement);
+  const depthProgress = requireElement('depthProgress', HTMLProgressElement);
+  const showDepthMapInput = requireElement('showDepthMap', HTMLInputElement);
+  const showDepthMapField = requireElement('showDepthMapField', HTMLLabelElement);
+  const aerialControls = requireElement('aerialControls', HTMLDivElement);
+  const aerialStart = requireElement('aerialStart', HTMLInputElement);
+  const aerialStartValue = requireElement('aerialStartValue', HTMLOutputElement);
+  const aerialStrength = requireElement('aerialStrength', HTMLInputElement);
+  const aerialStrengthValue = requireElement('aerialStrengthValue', HTMLOutputElement);
+  const distantInput = requireElement('distant', HTMLInputElement);
+  const distantField = requireElement('distantField', HTMLLabelElement);
+  const distantControls = requireElement('distantControls', HTMLDivElement);
+  const distantStart = requireElement('distantStart', HTMLInputElement);
+  const distantStartValue = requireElement('distantStartValue', HTMLOutputElement);
+  const distantStrength = requireElement('distantStrength', HTMLInputElement);
+  const distantStrengthValue = requireElement('distantStrengthValue', HTMLOutputElement);
   const darkValue = requireElement('cutDarkValue', HTMLOutputElement);
   const lightValue = requireElement('cutLightValue', HTMLOutputElement);
   const viewButtons = Array.from(
@@ -86,6 +113,32 @@ export function bindControls(handlers: ControlHandlers): Controls {
   showDarksInput.addEventListener('change', () => handlers.onShowDarks(showDarksInput.checked));
   resetButton.addEventListener('click', () => handlers.onReset());
   estimateDepthButton.addEventListener('click', () => handlers.onEstimateDepth());
+  showDepthMapInput.addEventListener('change', () =>
+    handlers.onShowDepthMap(showDepthMapInput.checked),
+  );
+
+  const reportAerial = (): void => {
+    const start = Number(aerialStart.value) / 100;
+    const strength = Number(aerialStrength.value) / 100;
+    aerialStartValue.textContent = formatStrength(start);
+    aerialStrengthValue.textContent = formatStrength(strength);
+    handlers.onAerial(start, strength);
+  };
+  aerialStart.addEventListener('input', reportAerial);
+  aerialStrength.addEventListener('input', reportAerial);
+
+  const reportDistant = (): void => {
+    const start = Number(distantStart.value) / 100;
+    const strength = Number(distantStrength.value) / 100;
+    distantStartValue.textContent = formatStrength(start);
+    distantStrengthValue.textContent = formatStrength(strength);
+    // The sliders only appear once the effect is on; hidden ones would just take up room.
+    distantControls.hidden = !distantInput.checked;
+    handlers.onDistant(distantInput.checked, start, strength);
+  };
+  distantInput.addEventListener('change', reportDistant);
+  distantStart.addEventListener('input', reportDistant);
+  distantStrength.addEventListener('input', reportDistant);
 
   simplifyInput.addEventListener('input', () => {
     const strength = Number(simplifyInput.value) / 100;
@@ -122,6 +175,10 @@ export function bindControls(handlers: ControlHandlers): Controls {
 
   simplifyValue.textContent = formatStrength(Number(simplifyInput.value) / 100);
   squintValue.textContent = formatStrength(Number(squintInput.value) / 100);
+  aerialStartValue.textContent = formatStrength(Number(aerialStart.value) / 100);
+  aerialStrengthValue.textContent = formatStrength(Number(aerialStrength.value) / 100);
+  distantStartValue.textContent = formatStrength(Number(distantStart.value) / 100);
+  distantStrengthValue.textContent = formatStrength(Number(distantStrength.value) / 100);
 
   return {
     showReadouts: (dark, light) => {
@@ -138,8 +195,30 @@ export function bindControls(handlers: ControlHandlers): Controls {
     showDepthStatus: (message) => {
       depthStatus.textContent = message;
     },
+    showDepthProgress: (progress) => {
+      if (progress === false) {
+        depthProgress.hidden = true;
+        return;
+      }
+      depthProgress.hidden = false;
+      if (progress === null) {
+        depthProgress.removeAttribute('value');
+      } else {
+        depthProgress.value = progress;
+      }
+    },
     setDepthBusy: (busy) => {
       estimateDepthButton.disabled = busy;
+    },
+    setDepthAvailable: (available) => {
+      showDepthMapField.hidden = !available;
+      aerialControls.hidden = !available;
+      distantField.hidden = !available;
+      if (!available) {
+        showDepthMapInput.checked = false;
+        distantInput.checked = false;
+        distantControls.hidden = true;
+      }
     },
   };
 }

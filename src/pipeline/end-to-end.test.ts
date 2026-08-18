@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ZONE_L } from '../constants';
+import { liftDistance } from './aerial';
 import { blurReduction, createBlurScratch, squintBlur } from './blur';
 import { srgbToLab } from './color';
 import { buildHistogram, percentilesToCuts, suggestPercentiles } from './histogram';
@@ -111,6 +112,16 @@ describe('whole pipeline on a synthetic photo', () => {
       kept: median(() => squintBlur(rgba, width, height, sigma, true, 0.3, blurScratch)),
     }));
 
+    // A depth ramp standing in for the model's output: near at the bottom, far at the top.
+    const depth = Float32Array.from({ length: width * height }, (_, i) =>
+      1 - Math.floor(i / width) / height,
+    );
+    const corrected = new Float32Array(width * height);
+    const aerialTime = median(() =>
+      liftDistance(lab.L, depth, { start: 0.35, strength: 0.5 }, corrected),
+    );
+    const correctedHistTime = median(() => buildHistogram(corrected, 256));
+
     const counts = [0, 0, 0];
     for (let i = 0; i < labels.length; i++) {
       counts[labels[i]!]!++;
@@ -131,6 +142,8 @@ describe('whole pipeline on a synthetic photo', () => {
         `simplify radius     ${settings.radius}px, minArea ${Math.round(settings.minArea)}px`,
         `majorityFilter      ${majorityTime.toFixed(1)}ms`,
         `absorbSmallRegions  ${absorbTime.toFixed(1)}ms`,
+        `liftDistance        ${aerialTime.toFixed(1)}ms`,
+        `histogram of it     ${correctedHistTime.toFixed(1)}ms`,
         ...squintTimes.map(
           (t) =>
             `squint sigma ${String(t.sigma).padEnd(4)} /${t.factor}  ` +

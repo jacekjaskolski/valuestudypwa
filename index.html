@@ -15,7 +15,6 @@
           <button type="button" class="segmented__button" data-view="both">Both</button>
           <button type="button" class="segmented__button" data-view="photo">Photo</button>
           <button type="button" class="segmented__button" data-view="study">Study</button>
-          <button type="button" class="segmented__button" data-view="depth">Depth</button>
         </div>
       </header>
 
@@ -50,16 +49,63 @@
             />
           </div>
 
+          <!-- Only meaningful once there is a depth map to drive them. -->
+          <div class="group" id="aerialControls" hidden>
+            <div class="slider">
+              <label class="slider__label" for="aerialStart">
+                Haze from
+                <output class="slider__value" id="aerialStartValue"></output>
+              </label>
+              <input
+                type="range"
+                id="aerialStart"
+                class="slider__input"
+                min="0"
+                max="100"
+                step="1"
+                value="35"
+              />
+            </div>
+            <div class="slider">
+              <label class="slider__label" for="aerialStrength">
+                Haze strength
+                <output class="slider__value" id="aerialStrengthValue"></output>
+              </label>
+              <input
+                type="range"
+                id="aerialStrength"
+                class="slider__input"
+                min="0"
+                max="100"
+                step="1"
+                value="50"
+              />
+            </div>
+          </div>
+
+          <progress class="progress" id="depthProgress" max="1" hidden></progress>
+          <p class="status" id="depthStatus">
+            Depth estimation downloads a model, around 27&nbsp;MB, once per browser.
+          </p>
+
           <div class="row">
             <label class="check">
               <input type="checkbox" id="keepHighlights" class="check__input" checked />
               <span>Preserve highlights</span>
             </label>
+            <label class="check" id="showDepthMapField" hidden>
+              <input type="checkbox" id="showDepthMap" class="check__input" />
+              <span>Show depth map</span>
+            </label>
+
+            <button type="button" id="estimateDepth" class="button button--end">
+              Estimate depth
+            </button>
             <!--
               No `capture` attribute: on iOS it forces the camera and removes the photo library
               from the picker. See NOTES.md.
             -->
-            <label class="button button--end">
+            <label class="button">
               <input type="file" id="fileInput" class="button__input" accept="image/*" />
               <span id="loadLabel">Load photo</span>
             </label>
@@ -75,27 +121,6 @@
           </div>
           <figcaption class="panel__label">Study</figcaption>
         </figure>
-
-        <figure class="panel panel--depth">
-          <div class="frame frame--empty" id="depthFrame">
-            <canvas id="depthCanvas" class="frame__canvas"></canvas>
-            <span class="frame__placeholder" id="depthPlaceholder">
-              Depth map appears here
-            </span>
-          </div>
-          <figcaption class="panel__label">Depth — far is white</figcaption>
-        </figure>
-
-        <section class="dock dock--depth" aria-label="Depth controls">
-          <p class="status" id="depthStatus">
-            Estimating depth downloads a model, around 27&nbsp;MB, once per browser.
-          </p>
-          <div class="row">
-            <button type="button" id="estimateDepth" class="button button--end">
-              Estimate depth
-            </button>
-          </div>
-        </section>
 
         <section class="dock dock--study" aria-label="Study controls">
           <div class="readout">
@@ -150,6 +175,39 @@
             />
           </div>
 
+          <div class="group" id="distantControls" hidden>
+            <div class="slider">
+              <label class="slider__label" for="distantStart">
+                Distance from
+                <output class="slider__value" id="distantStartValue"></output>
+              </label>
+              <input
+                type="range"
+                id="distantStart"
+                class="slider__input"
+                min="0"
+                max="100"
+                step="1"
+                value="35"
+              />
+            </div>
+            <div class="slider">
+              <label class="slider__label" for="distantStrength">
+                Lighten distance
+                <output class="slider__value" id="distantStrengthValue"></output>
+              </label>
+              <input
+                type="range"
+                id="distantStrength"
+                class="slider__input"
+                min="0"
+                max="100"
+                step="1"
+                value="50"
+              />
+            </div>
+          </div>
+
           <div class="row">
             <label class="check">
               <input type="checkbox" id="showDarks" class="check__input" />
@@ -158,6 +216,10 @@
             <label class="check">
               <input type="checkbox" id="greyscale" class="check__input" checked />
               <span>Flat grey</span>
+            </label>
+            <label class="check" id="distantField" hidden>
+              <input type="checkbox" id="distant" class="check__input" />
+              <span>Decrease distant values</span>
             </label>
             <button type="button" id="reset" class="button button--end">Reset</button>
           </div>

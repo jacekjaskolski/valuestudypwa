@@ -185,3 +185,28 @@ export const DEPTH_DTYPE_WEBGPU = 'q4f16';
  * distance comes out black instead of white, this is the one thing to flip.
  */
 export const DEPTH_NEAR_IS_HIGH = true;
+
+/* --- aerial perspective (SPEC.md §6.3) ------------------------------------- */
+
+/**
+ * The lightness the correction pulls distance towards.
+ *
+ * At 100 the farthest planes go all the way to paper white at full strength. Lower it to hold
+ * something back at the horizon, so distance never quite disappears.
+ */
+export const AERIAL_L_CEILING = 100;
+
+/** The pale blue that distance is mixed towards in the photo preview: sRGB, 0–255. */
+export const HAZE_COLOUR: readonly [number, number, number] = [196, 214, 234];
+
+/**
+ * How much colour distance loses before it is mixed towards the haze, 0–1 at full effect.
+ *
+ * Higher: distance goes grey first, so the haze reads as air. Lower: original hues survive into
+ * the mix and warm colours turn purple on their way to blue.
+ */
+export const HAZE_DESATURATION = 0.7;
+
+/** Where the effect starts and how strong it is, before the painter touches either slider. */
+export const AERIAL_DEFAULT_START = 0.35;
+export const AERIAL_DEFAULT_STRENGTH = 0.5;

@@ -156,47 +156,10 @@ body {
     "study-dock";
 }
 
-/* Depth is judged against the photo it came from, so it is shown beside it, never alone. */
-.app[data-view="depth"] .workspace {
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr) auto;
-  grid-template-areas:
-    "photo"
-    "photo-dock"
-    "depth"
-    "depth-dock";
-}
-
-@media (min-aspect-ratio: 1/1) {
-  .app[data-view="depth"] .workspace {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "photo depth"
-      "photo-dock depth-dock";
-  }
-}
-
-/* Only the depth view shows the depth panel; every other view hides what it does not use. */
-.panel--depth,
-.dock--depth {
-  display: none;
-}
-
-.app[data-view="depth"] .panel--depth {
-  display: flex;
-}
-
-.app[data-view="depth"] .dock--depth {
-  display: flex;
-}
-
 .app[data-view="photo"] .panel--study,
 .app[data-view="photo"] .dock--study,
 .app[data-view="study"] .panel--photo,
-.app[data-view="study"] .dock--photo,
-.app[data-view="depth"] .panel--study,
-.app[data-view="depth"] .dock--study {
+.app[data-view="study"] .dock--photo {
   display: none;
 }
 
@@ -216,13 +179,6 @@ body {
   grid-area: study-dock;
 }
 
-.panel--depth {
-  grid-area: depth;
-}
-
-.dock--depth {
-  grid-area: depth-dock;
-}
 
 .panel {
   margin: 0;
@@ -298,6 +254,50 @@ body {
 }
 
 /* --- controls ----------------------------------------------------------- */
+
+/*
+ * A group of controls that only makes sense once something else exists — the aerial sliders need
+ * a depth map before they mean anything.
+ */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.group[hidden] {
+  display: none;
+}
+
+.check[hidden] {
+  display: none;
+}
+
+/* The one-time model download, and then the inference. Indeterminate until a size is known. */
+.progress {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 3px;
+  border: none;
+  background: var(--line);
+}
+
+.progress[hidden] {
+  display: none;
+}
+
+.progress::-webkit-progress-bar {
+  background: var(--line);
+}
+
+.progress::-webkit-progress-value {
+  background: var(--control);
+}
+
+.progress::-moz-progress-bar {
+  background: var(--control);
+}
 
 /* A quiet line of prose in a dock: what the model is doing, or what it cost. */
 .status {

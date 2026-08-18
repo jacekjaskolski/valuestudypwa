@@ -6,6 +6,8 @@
  */
 
 import {
+  AERIAL_DEFAULT_START,
+  AERIAL_DEFAULT_STRENGTH,
   DEFAULT_PERCENTILE_DARK,
   DEFAULT_PERCENTILE_LIGHT,
   DEPTH_NEAR_IS_HIGH,
@@ -17,6 +19,7 @@ import {
 } from './constants';
 import { createBlurScratch, squintBlur, type BlurScratch } from './pipeline/blur';
 import { srgbToLab, type LabImage } from './pipeline/color';
+import { hazeDistance, liftDistance, type AerialSettings } from './pipeline/aerial';
 import { normalizeDepth, renderDepth, resampleBilinear } from './pipeline/depth';
 import {
   buildHistogram,
@@ -86,6 +89,10 @@ interface ImageState {
    * Aerial correction (SPEC.md §6.3) will read this; for now it only feeds the Depth view.
    */
   depth: Float32Array | null;
+  /** Corrected `L`, and its histogram, rebuilt whenever the distance correction changes. */
+  correctedL: Float32Array;
+  /** Full-size RGBA the photo is composed into before drawing: haze, or the depth map. */
+  photoBuffer: Rgba;
 }
 
 interface Params {
@@ -108,6 +115,12 @@ interface Params {
   squint: number;
   /** Whether squinting keeps bright accents where they are instead of smearing them. */
   keepHighlights: boolean;
+  /** Show the depth map in place of the photo, to see what the model found. */
+  showDepthMap: boolean;
+  /** The haze preview on the photo. */
+  aerial: AerialSettings;
+  /** The lightness correction on the study, and whether it is on. */
+  distant: AerialSettings & { on: boolean };
   view: View;
 }
 
@@ -117,8 +130,6 @@ const studyPlaceholder = requireElement('studyPlaceholder', HTMLSpanElement);
 const originalCanvas = requireCanvas('originalCanvas');
 const studyCanvas = requireCanvas('studyCanvas');
 const histogramCanvas = requireCanvas('histogram');
-const depthCanvas = requireCanvas('depthCanvas');
-const depthFrame = requireElement('depthFrame', HTMLDivElement);
 
 let state: ImageState | null = null;
 let params: Params = {
@@ -130,6 +141,9 @@ let params: Params = {
   simplify: 0.1,
   squint: 0,
   keepHighlights: true,
+  showDepthMap: false,
+  aerial: { start: AERIAL_DEFAULT_START, strength: AERIAL_DEFAULT_STRENGTH },
+  distant: { on: false, start: AERIAL_DEFAULT_START, strength: AERIAL_DEFAULT_STRENGTH },
   view: 'both',
 };
 
@@ -154,6 +168,8 @@ async function runExpensivePass(file: Blob): Promise<ImageState> {
     output: new Uint8ClampedArray(source.rgba.length),
     blurScratch: null,
     depth: null,
+    correctedL: new Float32Array(size),
+    photoBuffer: new Uint8ClampedArray(source.rgba.length),
   };
 }
 
@@ -179,13 +195,26 @@ function runCheapPass(image: ImageState, current: Params): void {
   const started = performance.now();
   const { width, height } = image.source;
 
+  // Aerial correction comes first, because it changes which zone a pixel lands in (SPEC.md §6.3).
+  // The histogram is rebuilt from the corrected values so the chart, and the boundaries read
+  // against it, follow the correction rather than describing an image that is no longer shown
+  // (SPEC.md §7).
+  const corrected = current.distant.on && image.depth !== null;
+  let L = image.lab.L;
+  let hist = image.hist;
+  if (corrected) {
+    liftDistance(image.lab.L, image.depth!, current.distant, image.correctedL);
+    L = image.correctedL;
+    hist = buildHistogram(L, HISTOGRAM_BINS);
+  }
+
   // Hiding the darks is a preview toggle, not an edit. Nothing has an `L` below zero, so a dark
   // boundary at zero matches nothing and every dark pixel falls into the mid zone — while the
   // boundary the painter set is left exactly where it was.
   const applied = current.showDarks
     ? current.cuts
     : { dark: 0, light: current.cuts.light };
-  thresholdL(image.lab.L, applied, image.labels);
+  thresholdL(L, applied, image.labels);
 
   let labels = image.labels;
   if (current.simplify > 0) {
@@ -201,7 +230,7 @@ function runCheapPass(image: ImageState, current: Params): void {
   }
   drawPixels(studyCanvas, image.output, width, height);
 
-  drawHistogram(histogramCanvas, image.hist, [
+  drawHistogram(histogramCanvas, hist, [
     { from: 0, to: applied.dark, l: ZONE_L[0]! },
     { from: applied.dark, to: applied.light, l: ZONE_L[1]! },
     { from: applied.light, to: 100, l: ZONE_L[2]! },
@@ -223,14 +252,22 @@ function runCheapPass(image: ImageState, current: Params): void {
  * how large the photo happens to be drawn.
  */
 function drawPhoto(image: ImageState, current: Params): void {
-  const { rgba, width, height } = image.source;
+  const { width, height } = image.source;
+
+  // What the photo panel shows, before squinting: the depth map, the hazed photo, or the photo.
+  let rgba = image.source.rgba;
+  if (image.depth !== null && current.showDepthMap) {
+    rgba = renderDepth(image.depth, image.photoBuffer);
+  } else if (image.depth !== null && current.aerial.strength > 0) {
+    rgba = hazeDistance(image.source.rgba, image.depth, current.aerial, image.photoBuffer);
+  }
 
   if (current.squint <= 0) {
     drawPixels(originalCanvas, rgba, width, height);
     return;
   }
 
-  image.blurScratch ??= createBlurScratch(rgba.length);
+  image.blurScratch ??= createBlurScratch(image.source.rgba.length);
   const started = performance.now();
   const blurred = squintBlur(
     rgba,
@@ -364,6 +401,18 @@ const controls = bindControls({
     scheduleRender();
   },
   onEstimateDepth: () => void estimateDepthForCurrentImage(),
+  onShowDepthMap: (on) => {
+    params = { ...params, showDepthMap: on };
+    schedulePhoto();
+  },
+  onAerial: (start, strength) => {
+    params = { ...params, aerial: { start, strength } };
+    schedulePhoto();
+  },
+  onDistant: (on, start, strength) => {
+    params = { ...params, distant: { on, start, strength } };
+    scheduleRender();
+  },
   onReset: () => {
     if (!state) {
       return;
@@ -392,18 +441,24 @@ async function estimateDepthForCurrentImage(): Promise<void> {
 
   controls.setDepthBusy(true);
   controls.showDepthStatus('Loading model…');
+  controls.showDepthProgress(null);
 
   try {
     const { estimateDepth } = await import('./model/depth');
     const { width, height } = image.source;
 
     const result = await estimateDepth(image.source.rgba, width, height, (progress) => {
+      controls.showDepthProgress(progress.fraction);
       controls.showDepthStatus(
         progress.fraction === null
           ? 'Loading model…'
           : `Downloading model… ${Math.round(progress.fraction * 100)}%`,
       );
     });
+
+    // The download reports progress; the inference that follows does not, so the bar goes
+    // indeterminate rather than sitting at 100% while the model is still thinking.
+    controls.showDepthProgress(null);
 
     // Normalise at the model's own resolution, then stretch to ours: the range belongs to the
     // model's output, and resampling first would blur the extremes that define it.
@@ -414,15 +469,12 @@ async function estimateDepthForCurrentImage(): Promise<void> {
     resampleBilinear(normalized, result.width, result.height, full, width, height);
     image.depth = full;
 
-    const pixels = new Uint8ClampedArray(width * height * 4);
-    renderDepth(full, pixels);
-    drawPixels(depthCanvas, pixels, width, height);
-    depthFrame.classList.remove('frame--empty');
-
+    controls.setDepthAvailable(true);
     controls.showDepthStatus(
       `${result.device}, ${Math.round(result.ms)}ms, model output ` +
         `${result.width}×${result.height}. Distance should read white.`,
     );
+    drawPhoto(image, params);
   } catch (error) {
     controls.showDepthStatus(
       'Depth estimation failed. The study is unaffected — see the console.',
@@ -430,6 +482,7 @@ async function estimateDepthForCurrentImage(): Promise<void> {
     console.error(error);
   } finally {
     controls.setDepthBusy(false);
+    controls.showDepthProgress(false);
   }
 }
 
@@ -448,8 +501,10 @@ async function loadFile(file: Blob): Promise<void> {
   drawPhoto(state, params);
   photoFrame.classList.remove('frame--empty');
   studyFrame.classList.remove('frame--empty');
-  depthFrame.classList.add('frame--empty');
   controls.showLoaded(true);
+  // A new photo invalidates the old depth map, and everything that depended on it.
+  controls.setDepthAvailable(false);
+  params = { ...params, showDepthMap: false, distant: { ...params.distant, on: false } };
   controls.showDepthStatus('Not estimated for this photo yet.');
 
   // A photo opens on the suggestion, so the painter sees a usable study without touching a slider.

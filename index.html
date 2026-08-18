@@ -18,7 +18,12 @@
         </div>
       </header>
 
-      <main class="panels">
+      <!--
+        One grid over both images and both control blocks, rather than a row of images above a
+        strip of controls. Each panel's controls sit under the panel they belong to, and the two
+        images still share a grid row, which is what keeps them exactly the same size.
+      -->
+      <main class="workspace">
         <figure class="panel panel--photo">
           <div class="frame frame--empty" id="photoFrame">
             <canvas id="originalCanvas" class="frame__canvas"></canvas>
@@ -26,6 +31,39 @@
           </div>
           <figcaption class="panel__label">Photo</figcaption>
         </figure>
+
+        <section class="dock dock--photo" aria-label="Photo controls">
+          <div class="slider">
+            <label class="slider__label" for="squint">
+              Squint
+              <output class="slider__value" id="squintValue"></output>
+            </label>
+            <input
+              type="range"
+              id="squint"
+              class="slider__input"
+              min="0"
+              max="100"
+              step="1"
+              value="0"
+            />
+          </div>
+
+          <div class="row">
+            <label class="check">
+              <input type="checkbox" id="keepHighlights" class="check__input" />
+              <span>Keep highlights</span>
+            </label>
+            <!--
+              No `capture` attribute: on iOS it forces the camera and removes the photo library
+              from the picker. See NOTES.md.
+            -->
+            <label class="button button--end">
+              <input type="file" id="fileInput" class="button__input" accept="image/*" />
+              <span id="loadLabel">Load photo</span>
+            </label>
+          </div>
+        </section>
 
         <figure class="panel panel--study">
           <div class="frame frame--empty" id="studyFrame">
@@ -36,10 +74,8 @@
           </div>
           <figcaption class="panel__label">Study</figcaption>
         </figure>
-      </main>
 
-      <section class="controls">
-        <div class="group group--values">
+        <section class="dock dock--study" aria-label="Study controls">
           <div class="readout">
             <span class="readout__item">
               Darks <output class="readout__value" id="cutDarkValue"></output>
@@ -91,53 +127,20 @@
               value="0"
             />
           </div>
-        </div>
 
-        <div class="group group--squint">
-          <div class="slider">
-            <label class="slider__label" for="squint">
-              Squint
-              <output class="slider__value" id="squintValue"></output>
+          <div class="row">
+            <label class="check">
+              <input type="checkbox" id="showDarks" class="check__input" />
+              <span>Show darks</span>
             </label>
-            <input
-              type="range"
-              id="squint"
-              class="slider__input"
-              min="0"
-              max="100"
-              step="1"
-              value="0"
-            />
-          </div>
-          <label class="check">
-            <input type="checkbox" id="keepHighlights" class="check__input" />
-            <span>Keep highlights</span>
-          </label>
-        </div>
-
-        <div class="row">
-          <label class="check check--study">
-            <input type="checkbox" id="showDarks" class="check__input" />
-            <span>Show darks</span>
-          </label>
-          <label class="check check--study">
-            <input type="checkbox" id="greyscale" class="check__input" checked />
-            <span>Flat grey</span>
-          </label>
-
-          <div class="row__end">
-            <!--
-              No `capture` attribute: on iOS it forces the camera and removes the photo library
-              from the picker. See NOTES.md.
-            -->
-            <label class="button">
-              <input type="file" id="fileInput" class="button__input" accept="image/*" />
-              <span id="loadLabel">Load photo</span>
+            <label class="check">
+              <input type="checkbox" id="greyscale" class="check__input" checked />
+              <span>Flat grey</span>
             </label>
-            <button type="button" id="reset" class="button">Reset</button>
+            <button type="button" id="reset" class="button button--end">Reset</button>
           </div>
-        </div>
-      </section>
+        </section>
+      </main>
     </div>
 
     <script type="module" src="/src/main.ts"></script>

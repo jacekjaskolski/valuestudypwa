@@ -105,8 +105,13 @@ export function blurReduction(sigma: number): number {
  * Shrink by an integer factor, averaging each block.
  *
  * Input: `src` at `width` × `height`; `factor` >= 1. Output: `dst`, at the ceiling of each
- * dimension over the factor. Blocks at the right and bottom edges are whatever is left, so no
- * pixel is invented and none is dropped.
+ * dimension over the factor.
+ *
+ * The last block in a row or column runs past the edge when the factor does not divide the size.
+ * It is filled by repeating the edge pixel, the same way the blur samples past an edge, so every
+ * block averages the same number of samples. Averaging the remainder alone instead gives the edge
+ * block a different weight from all the others, and since the size of that remainder changes with
+ * the factor, the border shifts as the slider moves it.
  */
 export function downsampleBox(
   src: Rgba,
@@ -118,27 +123,26 @@ export function downsampleBox(
   const outWidth = Math.ceil(width / factor);
   const outHeight = Math.ceil(height / factor);
 
-  for (let dy = 0; dy < outHeight; dy++) {
-    const y0 = dy * factor;
-    const y1 = Math.min(y0 + factor, height);
-    for (let dx = 0; dx < outWidth; dx++) {
-      const x0 = dx * factor;
-      const x1 = Math.min(x0 + factor, width);
+  const count = factor * factor;
 
+  for (let dy = 0; dy < outHeight; dy++) {
+    for (let dx = 0; dx < outWidth; dx++) {
       let r = 0;
       let g = 0;
       let b = 0;
-      for (let y = y0; y < y1; y++) {
-        const row = y * width * 4;
-        for (let x = x0; x < x1; x++) {
-          const p = row + x * 4;
+
+      for (let k = 0; k < factor; k++) {
+        const y = dy * factor + k;
+        const row = (y >= height ? height - 1 : y) * width * 4;
+        for (let j = 0; j < factor; j++) {
+          const x = dx * factor + j;
+          const p = row + (x >= width ? width - 1 : x) * 4;
           r += src[p]!;
           g += src[p + 1]!;
           b += src[p + 2]!;
         }
       }
 
-      const count = (y1 - y0) * (x1 - x0);
       const p = (dy * outWidth + dx) * 4;
       dst[p] = r / count + 0.5;
       dst[p + 1] = g / count + 0.5;

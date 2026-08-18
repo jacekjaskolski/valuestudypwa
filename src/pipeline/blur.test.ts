@@ -179,13 +179,15 @@ describe('downsampleBox', () => {
     expect(dst[0]!).toBe(90); // (0 + 100 + 200 + 60) / 4
   });
 
-  it('handles a size that is not a multiple of the factor without inventing pixels', () => {
-    const { pixels, width, height } = grey([[0, 0, 240]]);
+  it('repeats the edge pixel where the last block runs past it', () => {
+    // Every block averages factor² samples, including the one hanging off the end. Weighting the
+    // edge block differently from the rest makes the border move as the factor changes.
+    const { pixels, width, height } = grey([[0, 0, 240, 60]]);
     const dst = new Uint8ClampedArray(pixels.length);
-    const size = downsampleBox(pixels, width, height, 2, dst);
+    const size = downsampleBox(pixels, width, height, 3, dst);
     expect(size).toEqual({ width: 2, height: 1 });
-    expect(dst[0]!).toBe(0);
-    expect(dst[4]!).toBe(240); // the leftover column, averaged over itself alone
+    expect(dst[0]!).toBe(80); // (0 + 0 + 240) / 3
+    expect(dst[4]!).toBe(60); // 60, then the edge repeated twice
   });
 
   it('copies through at a factor of one', () => {

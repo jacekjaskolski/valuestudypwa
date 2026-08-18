@@ -1,7 +1,7 @@
 /*
- * The interface is a single non-scrolling screen: header, image panels, and one control strip
- * pinned at the bottom. Nothing here has a hue — a coloured interface sitting next to a value
- * study biases how the painter reads the values in it (SPEC.md §7).
+ * The interface is a single non-scrolling screen: a header over a grid of image panels, each with
+ * its own controls beneath it. Nothing here has a hue — a coloured interface sitting next to a
+ * value study biases how the painter reads the values in it (SPEC.md §7).
  *
  * The ground is a light grey so that the study, which sits on white, reads as paper against it.
  */
@@ -47,7 +47,7 @@ body {
 
 .app {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: var(--gap);
   height: 100dvh;
   padding: var(--gap);
@@ -105,34 +105,78 @@ body {
   outline-offset: -2px;
 }
 
-/* --- image panels ------------------------------------------------------- */
+/* --- workspace ---------------------------------------------------------- */
 
-/* Equal halves side by side when the screen is wide, equal halves stacked when it is tall. */
-.panels {
+/*
+ * Images and controls in one grid, so that each panel's controls sit beneath it while the two
+ * images still share a row — which is what keeps them exactly the same size. Controls share a row
+ * too, so the taller of the two sets the height and neither image is pushed up.
+ *
+ * Tall screens stack the two panels, each above its own controls.
+ */
+.workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--gap);
   min-height: 0;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "photo"
+    "photo-dock"
+    "study"
+    "study-dock";
 }
 
 @media (min-aspect-ratio: 1/1) {
-  .panels {
+  .workspace {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "photo study"
+      "photo-dock study-dock";
   }
 }
 
 /* A focused view gives its one panel the whole area. */
-.app[data-view="photo"] .panels,
-.app[data-view="study"] .panels {
+.app[data-view="photo"] .workspace,
+.app[data-view="study"] .workspace {
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.app[data-view="photo"] .workspace {
+  grid-template-areas:
+    "photo"
+    "photo-dock";
+}
+
+.app[data-view="study"] .workspace {
+  grid-template-areas:
+    "study"
+    "study-dock";
 }
 
 .app[data-view="photo"] .panel--study,
-.app[data-view="study"] .panel--photo {
+.app[data-view="photo"] .dock--study,
+.app[data-view="study"] .panel--photo,
+.app[data-view="study"] .dock--photo {
   display: none;
+}
+
+.panel--photo {
+  grid-area: photo;
+}
+
+.panel--study {
+  grid-area: study;
+}
+
+.dock--photo {
+  grid-area: photo-dock;
+}
+
+.dock--study {
+  grid-area: study-dock;
 }
 
 .panel {
@@ -141,6 +185,13 @@ body {
   flex-direction: column;
   gap: 0.25rem;
   min-height: 0;
+}
+
+.dock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
 }
 
 /*
@@ -202,29 +253,6 @@ body {
 }
 
 /* --- controls ----------------------------------------------------------- */
-
-.controls {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-/* The boundaries belong to the study; squinting belongs to the photo. */
-.app[data-view="photo"] .group--values,
-.app[data-view="photo"] .check--study {
-  display: none;
-}
-
-.app[data-view="both"] .group--squint,
-.app[data-view="study"] .group--squint {
-  display: none;
-}
 
 .readout {
   display: flex;
@@ -412,10 +440,8 @@ body {
   user-select: none;
 }
 
-.row__end {
-  display: flex;
-  align-items: center;
-  gap: var(--gap);
+/* Pushes a control to the far end of its row. */
+.button--end {
   margin-left: auto;
 }
 

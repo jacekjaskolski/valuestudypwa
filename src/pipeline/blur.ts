@@ -306,6 +306,12 @@ export interface BlurResult {
   pixels: Rgba;
   width: number;
   height: number;
+  /**
+   * How much it was shrunk. The caller must scale by exactly this to draw it, *not* by whatever
+   * ratio maps its size back onto the original: the reduced image covers `width * factor` source
+   * pixels, which rounds up past the original width whenever the two do not divide evenly.
+   */
+  factor: number;
 }
 
 /**
@@ -343,7 +349,7 @@ export function squintBlur(
   blurRgba(source, workWidth, workHeight, workSigma, scratch, scratch.blurred);
 
   if (!keepHighlights) {
-    return { pixels: scratch.blurred, width: workWidth, height: workHeight };
+    return { pixels: scratch.blurred, width: workWidth, height: workHeight, factor };
   }
 
   blurRgba(source, workWidth, workHeight, workSigma * highlightRatio, scratch, scratch.highlights);
@@ -353,5 +359,5 @@ export function squintBlur(
     workWidth * workHeight * 4,
     scratch.highlights,
   );
-  return { pixels: scratch.highlights, width: workWidth, height: workHeight };
+  return { pixels: scratch.highlights, width: workWidth, height: workHeight, factor };
 }

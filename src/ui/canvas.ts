@@ -90,17 +90,28 @@ export function drawPixels(
 let scaler: HTMLCanvasElement | null = null;
 
 /**
- * Paint RGBA pixels into a canvas, stretching them to a different size.
+ * Paint reduced-resolution RGBA pixels into a canvas, magnified by an exact integer factor.
  *
  * Used for the squint preview, which is computed at reduced resolution because a blur throws away
- * the detail anyway. The canvas does the upscale, which is free next to doing it in a loop, and
- * the target keeps its working-resolution size so the photo and the study stay laid out alike.
+ * the detail anyway. The canvas does the magnification, which is free next to doing it in a loop,
+ * and the target keeps its working-resolution size so the photo and the study stay laid out alike.
+ *
+ * Two details keep the image still while the factor changes under a moving slider:
+ *
+ * The magnified image is drawn at `sourceWidth * factor`, not stretched to fill `width`. Those
+ * differ whenever the factor does not divide the width, and stretching to fit makes the effective
+ * scale slightly less than the factor — an error that accumulates across the frame and changes
+ * every time the factor steps. The overhang, under one reduced pixel, is clipped by the canvas.
+ *
+ * The draw is offset by half a pixel, because a reduced pixel averages a block whose centre sits
+ * half a pixel left of where magnifying alone would place it.
  */
 export function drawPixelsScaled(
   canvas: HTMLCanvasElement,
   pixels: Rgba,
   sourceWidth: number,
   sourceHeight: number,
+  factor: number,
   width: number,
   height: number,
 ): void {
@@ -121,7 +132,7 @@ export function drawPixelsScaled(
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
   ctx.clearRect(0, 0, width, height);
-  ctx.drawImage(scaler, 0, 0, width, height);
+  ctx.drawImage(scaler, -0.5, -0.5, sourceWidth * factor, sourceHeight * factor);
 }
 
 function cssVariable(name: string, fallback: string): string {

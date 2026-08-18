@@ -238,6 +238,22 @@ describe('squintBlur', () => {
     const small = squintBlur(pixels, width, height, 0.6, false, 0.3, scratch);
     expect(big.width).toBeLessThan(width);
     expect(small.width).toBe(width);
+    expect(small.factor).toBe(1);
+  });
+
+  it('reports a factor that covers the whole image once magnified', () => {
+    // What the drawing relies on: magnifying by exactly `factor` reaches at least the original
+    // size, so nothing has to be stretched to fit. Stretching instead is what made the photo
+    // creep sideways as the slider moved the factor from one step to the next.
+    const { pixels, width, height } = photo();
+    const scratch = createBlurScratch(pixels.length);
+    for (const sigma of [1, 2, 3, 5, 8, 13, 21]) {
+      const result = squintBlur(pixels, width, height, sigma, false, 0.3, scratch);
+      expect(result.width * result.factor).toBeGreaterThanOrEqual(width);
+      expect(result.height * result.factor).toBeGreaterThanOrEqual(height);
+      // ...and by less than one reduced pixel, so the clipped overhang stays negligible.
+      expect(result.width * result.factor - width).toBeLessThan(result.factor);
+    }
   });
 
   it('keeps highlights brighter than a plain blur of the same radius', () => {

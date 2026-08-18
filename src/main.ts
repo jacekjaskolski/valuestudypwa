@@ -230,14 +230,20 @@ function drawPhoto(image: ImageState, current: Params): void {
     SQUINT_HIGHLIGHT_BLUR_RATIO,
     image.blurScratch,
   );
-  drawPixelsScaled(
-    originalCanvas,
-    blurred.pixels,
-    blurred.width,
-    blurred.height,
-    width,
-    height,
-  );
+  if (blurred.factor === 1) {
+    // Nothing was reduced, so draw it straight rather than round-tripping through a resample.
+    drawPixels(originalCanvas, blurred.pixels, width, height);
+  } else {
+    drawPixelsScaled(
+      originalCanvas,
+      blurred.pixels,
+      blurred.width,
+      blurred.height,
+      blurred.factor,
+      width,
+      height,
+    );
+  }
 
   if (import.meta.env.DEV) {
     console.debug(

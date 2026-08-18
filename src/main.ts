@@ -117,9 +117,10 @@ let params: Params = {
   cuts: { dark: DEFAULT_PERCENTILE_DARK, light: DEFAULT_PERCENTILE_LIGHT },
   greyscale: true,
   showDarks: false,
-  simplify: 0,
+  // These three mirror the markup's own defaults; `index.html` is the other half of each.
+  simplify: 0.1,
   squint: 0,
-  keepHighlights: false,
+  keepHighlights: true,
   view: 'both',
 };
 

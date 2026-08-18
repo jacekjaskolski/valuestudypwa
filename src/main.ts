@@ -15,6 +15,7 @@ import {
 import { srgbToLab, type LabImage } from './pipeline/color';
 import {
   buildHistogram,
+  lToPercentile,
   percentilesToCuts,
   suggestPercentiles,
 } from './pipeline/histogram';
@@ -40,6 +41,7 @@ import {
   type SourcePixels,
 } from './ui/canvas';
 import { bindControls } from './ui/controls';
+import { bindValueBar } from './ui/valuebar';
 
 /**
  * Everything the expensive pass produces for one image, plus the buffers the cheap pass reuses so
@@ -50,10 +52,11 @@ interface ImageState {
   lab: LabImage;
   /**
    * Histogram of `L`. Once aerial correction lands this becomes the histogram of *corrected* `L`
-   * and moves into the cheap pass, because both the chart and the percentile boundaries have to
+   * and moves into the cheap pass, because both the chart and the boundary readouts have to
    * follow the correction (SPEC.md §7).
    */
   hist: Uint32Array;
+  /** The opening boundaries, in `L`, converted from the suggestion when the photo loaded. */
   suggested: Boundaries;
   /**
    * Every pixel's colour in every zone, so the cheap pass is a byte gather. Built on demand: the
@@ -65,8 +68,13 @@ interface ImageState {
 }
 
 interface Params {
-  /** Percentiles of the image's own luminance, not positions on the `L` scale. */
-  boundaries: Boundaries;
+  /**
+   * Positions on the `L` scale, 0–100 — the same axis the value bar and histogram are drawn on,
+   * so a handle sits on the part of the distribution it cuts. The *suggestion* is still computed
+   * in percentiles, which is what makes it meaningful across differently exposed photos
+   * (SPEC.md §6.4); `percentilesToCuts` converts it once, when the photo loads.
+   */
+  cuts: Boundaries;
   greyscale: boolean;
   /**
    * Whether the dark zone is painted. Off, the darks fall back into the mid zone; the boundary
@@ -85,7 +93,8 @@ const histogramCanvas = requireCanvas('histogram');
 
 let state: ImageState | null = null;
 let params: Params = {
-  boundaries: { dark: DEFAULT_PERCENTILE_DARK, light: DEFAULT_PERCENTILE_LIGHT },
+  // Until a photo defines a real distribution these are just where the handles rest.
+  cuts: { dark: DEFAULT_PERCENTILE_DARK, light: DEFAULT_PERCENTILE_LIGHT },
   greyscale: true,
   showDarks: false,
 };
@@ -94,11 +103,15 @@ let params: Params = {
 async function runExpensivePass(file: Blob): Promise<ImageState> {
   const source = await decodeToWorkingSize(file, WORKING_RESOLUTION);
   const lab = srgbToLab(source.rgba);
+  const hist = buildHistogram(lab.L, HISTOGRAM_BINS);
   return {
     source,
     lab,
-    hist: buildHistogram(lab.L, HISTOGRAM_BINS),
-    suggested: suggestPercentiles(lab.L, source.width, source.height),
+    hist,
+    suggested: percentilesToCuts(
+      hist,
+      suggestPercentiles(lab.L, source.width, source.height),
+    ),
     zoneColours: null,
     labels: new Uint8Array(source.width * source.height),
     output: new Uint8ClampedArray(source.rgba.length),
@@ -110,15 +123,21 @@ function zoneColoursOf(image: ImageState): ZoneColours {
   return image.zoneColours;
 }
 
+/** A boundary reads as the share of the picture it cuts off, not as a raw position. */
+function shareBelow(image: ImageState | null, l: number): string {
+  return image === null ? '—' : `${Math.round(lToPercentile(image.hist, l))}%`;
+}
+
 /** Cheap pass: SPEC.md §4 steps 6–9. Runs on every control change. */
 function runCheapPass(image: ImageState, current: Params): void {
   const started = performance.now();
 
-  const cuts = percentilesToCuts(image.hist, current.boundaries);
   // Hiding the darks is a preview toggle, not an edit. Nothing has an `L` below zero, so a dark
   // boundary at zero matches nothing and every dark pixel falls into the mid zone — while the
   // boundary the painter set is left exactly where it was.
-  const applied = current.showDarks ? cuts : { dark: 0, light: cuts.light };
+  const applied = current.showDarks
+    ? current.cuts
+    : { dark: 0, light: current.cuts.light };
   thresholdL(image.lab.L, applied, image.labels);
 
   if (current.greyscale) {
@@ -127,9 +146,11 @@ function runCheapPass(image: ImageState, current: Params): void {
     renderZones(image.labels, zoneColoursOf(image), image.output);
   }
   drawPixels(studyCanvas, image.output, image.source.width, image.source.height);
+
   drawHistogram(histogramCanvas, image.hist, [
-    { l: cuts.dark, active: current.showDarks },
-    { l: cuts.light, active: true },
+    { from: 0, to: applied.dark, l: ZONE_L[0]! },
+    { from: applied.dark, to: applied.light, l: ZONE_L[1]! },
+    { from: applied.light, to: 100, l: ZONE_L[2]! },
   ]);
 
   recordCheapPassTime(performance.now() - started);
@@ -170,33 +191,47 @@ function scheduleRender(): void {
   });
 }
 
-const controls = bindControls({
-  onFile: (file) => void loadFile(file),
-  onBoundaryMoved: (boundaries, moved) => {
-    params = { ...params, boundaries: clampBoundaries(boundaries, moved) };
+/** Push the current boundaries into the value bar and the readouts. */
+function showCuts(): void {
+  valueBar.show(params.cuts);
+  valueBar.setDarkActive(params.showDarks);
+  controls.showReadouts(
+    shareBelow(state, params.cuts.dark),
+    shareBelow(state, params.cuts.light),
+  );
+}
+
+const valueBar = bindValueBar({
+  onMoved: (cuts, moved) => {
+    params = { ...params, cuts: clampBoundaries(cuts, moved) };
     // Dragging the dark boundary while the darks are hidden would do nothing visible, so touching
     // it switches the preview on.
     if (moved === 'dark' && !params.showDarks) {
       params = { ...params, showDarks: true };
       controls.showDarksState(true);
     }
-    controls.showBoundaries(params.boundaries);
+    showCuts();
     scheduleRender();
   },
+});
+
+const controls = bindControls({
+  onFile: (file) => void loadFile(file),
   onGreyscale: (on) => {
     params = { ...params, greyscale: on };
     scheduleRender();
   },
   onShowDarks: (on) => {
     params = { ...params, showDarks: on };
+    valueBar.setDarkActive(on);
     scheduleRender();
   },
   onReset: () => {
     if (!state) {
       return;
     }
-    params = { ...params, boundaries: state.suggested };
-    controls.showBoundaries(params.boundaries);
+    params = { ...params, cuts: state.suggested };
+    showCuts();
     scheduleRender();
   },
 });
@@ -220,13 +255,13 @@ async function loadFile(file: Blob): Promise<void> {
   photoCaption.textContent = 'Photo — tap to change';
 
   // A photo opens on the suggestion, so the painter sees a usable study without touching a slider.
-  params = { ...params, boundaries: state.suggested };
-  controls.showBoundaries(params.boundaries);
+  params = { ...params, cuts: state.suggested };
+  showCuts();
   runCheapPass(state, params);
 }
 
-controls.showBoundaries(params.boundaries);
+showCuts();
 
-// The histogram is drawn at device pixel ratio against the canvas's CSS width, so a resize needs
-// a redraw to stay crisp.
+// The value bar is drawn at device pixel ratio against its CSS width, and the panels relayout, so
+// a resize needs a redraw to stay crisp.
 window.addEventListener('resize', scheduleRender);

@@ -1,22 +1,22 @@
 /*
- * SPEC.md §7 "Design direction": the chrome is mid-grey and desaturated, close to a neutral
- * gallery wall. A coloured or high-contrast interface sitting next to a value study biases how
- * the painter reads the values in it. Nothing here has a hue.
+ * The interface is a single non-scrolling screen: header, two equal image panels, and one control
+ * strip pinned at the bottom. Nothing here has a hue — a coloured interface sitting next to a
+ * value study biases how the painter reads the values in it (SPEC.md §7).
  */
 
 :root {
-  --bg: #585858;
-  --surface: #4f4f4f;
-  --line: #6d6d6d;
-  --text: #e6e6e6;
-  --text-dim: #b4b4b4;
-  --control: #cfcfcf;
-  --control-muted: #8a8a8a;
+  --bg: #ffffff;
+  --surface: #f1f1f1;
+  --line: #d9d9d9;
+  --text: #1d1d1d;
+  --text-dim: #6f6f6f;
+  --control: #262626;
+  --control-muted: #b3b3b3;
 
-  --gap: 0.75rem;
+  --gap: 0.6rem;
   --radius: 2px;
 
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 * {
@@ -29,22 +29,26 @@ body {
   padding: 0;
 }
 
+/* App, not page: the layout fits the viewport and never scrolls. */
 body {
+  height: 100dvh;
+  overflow: hidden;
   background: var(--bg);
   color: var(--text);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   font-size: 14px;
   line-height: 1.4;
   -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
 }
 
 .app {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: var(--gap);
+  height: 100dvh;
   padding: var(--gap);
   padding-bottom: max(var(--gap), env(safe-area-inset-bottom));
-  min-height: 100dvh;
 }
 
 /* --- header ------------------------------------------------------------- */
@@ -61,20 +65,19 @@ body {
 
 /* --- image panels ------------------------------------------------------- */
 
-/*
- * Stacked on narrow viewports, side by side on wide ones. The study gets more space than the
- * photo; the photo is a reference thumbnail, not a co-equal panel (SPEC.md §7).
- */
+/* Equal halves side by side when the screen is wide, equal halves stacked when it is tall. */
 .panels {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--gap);
-  align-items: start;
+  min-height: 0;
 }
 
-@media (min-width: 720px) {
+@media (min-aspect-ratio: 1/1) {
   .panels {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
   }
 }
 
@@ -82,23 +85,27 @@ body {
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.25rem;
+  min-height: 0;
 }
 
 /*
- * A frame holds either a canvas or its placeholder. Empty, it keeps a photo-shaped hole so the
- * whole interface is laid out from the moment the page opens; loaded, the canvas sets the height.
+ * A frame holds either a canvas or its placeholder, and takes whatever height the grid gives it.
+ * The canvas letterboxes inside rather than driving the layout, which is what keeps the page from
+ * ever needing to scroll.
  */
 .frame {
-  display: block;
   position: relative;
-  width: 100%;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: var(--surface);
   border-radius: var(--radius);
 }
 
 .frame--empty {
-  aspect-ratio: 4 / 3;
   border: 1px dashed var(--line);
 }
 
@@ -108,7 +115,9 @@ body {
 
 .frame__canvas {
   display: block;
-  width: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
   height: auto;
   border-radius: var(--radius);
 }
@@ -147,6 +156,7 @@ body {
 }
 
 .panel__label {
+  flex: none;
   color: var(--text-dim);
   font-size: 11px;
   letter-spacing: 0.06em;
@@ -158,96 +168,91 @@ body {
 .controls {
   display: flex;
   flex-direction: column;
-  gap: var(--gap);
-  margin-top: auto;
+  gap: 0.4rem;
 }
 
-/*
- * The histogram and the sliders are the only things on screen carrying information, so they get
- * what visual interest there is. The chart shares the sliders' full width so a boundary marker
- * sits under the value it belongs to.
- */
-.histogram {
-  display: block;
-  width: 100%;
-  height: 3.5rem;
-  background: var(--surface);
-  border-radius: var(--radius);
-}
-
-.sliders {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.slider {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
-.slider__label {
+.readout {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
   color: var(--text-dim);
   font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
-.slider__value {
+.readout__value {
   font-variant-numeric: tabular-nums;
   color: var(--text);
 }
 
 /*
- * A wide flat track and a large thumb: this is dragged with a thumb, at an easel, often with a
- * wet brush in the other hand.
+ * The value bar: histogram and both boundaries in one control. Tall enough to be a comfortable
+ * drag target at an easel, and the only thing on screen carrying information, so it gets what
+ * visual interest there is.
  */
-.slider__input {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-  height: 2rem;
-  margin: 0;
-  background: transparent;
+.valuebar {
+  position: relative;
+  height: 4.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  touch-action: none;
   cursor: pointer;
 }
 
-.slider__input::-webkit-slider-runnable-track {
-  height: 2px;
-  background: var(--line);
+.valuebar__chart {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius);
 }
 
-.slider__input::-moz-range-track {
-  height: 2px;
-  background: var(--line);
+/*
+ * Handles span the full height of the bar so the boundary reads as a cut through the histogram,
+ * not as a knob sitting on a track. The hit area is wider than the visible line.
+ */
+.valuebar__handle {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2.25rem;
+  margin-left: -1.125rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: ew-resize;
+  touch-action: none;
 }
 
-.slider__input::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 1.5rem;
-  height: 1.5rem;
-  margin-top: -0.7rem;
-  border: none;
-  border-radius: 50%;
+.valuebar__handle::before {
+  content: "";
+  width: 2px;
+  height: 100%;
   background: var(--control);
 }
 
-.slider__input::-moz-range-thumb {
-  width: 1.5rem;
-  height: 1.5rem;
-  border: none;
+.valuebar__handle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 0.9rem;
+  height: 0.9rem;
+  margin-top: -0.45rem;
   border-radius: 50%;
   background: var(--control);
+  box-shadow: 0 0 0 2px var(--bg);
 }
 
-.slider__input:focus-visible {
+/* A boundary that still holds its value but is not currently cutting. */
+.valuebar__handle--muted::before,
+.valuebar__handle--muted::after {
+  background: var(--control-muted);
+}
+
+.valuebar__handle:focus-visible {
   outline: 2px solid var(--control);
-  outline-offset: 2px;
+  outline-offset: 1px;
+  border-radius: var(--radius);
 }
 
 .row {
@@ -275,10 +280,10 @@ body {
 .button,
 .frame__button {
   display: inline-block;
-  padding: 0.6rem 1rem;
+  padding: 0.5rem 0.9rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: transparent;
+  background: var(--bg);
   color: var(--text);
   font: inherit;
   cursor: pointer;

@@ -3,6 +3,7 @@
  * `src/pipeline/` is (SPEC.md §4, purity rule).
  */
 
+import { labToSrgbPixel } from '../pipeline/color';
 import { fitWithin } from '../pipeline/resize';
 import type { Rgba } from '../pipeline/types';
 
@@ -87,24 +88,36 @@ function cssVariable(name: string, fallback: string): string {
   return value === '' ? fallback : value;
 }
 
-/** A boundary drawn on the histogram. Muted marks still hold a value but are not cutting. */
-export interface HistogramMark {
-  /** Position on the `L` scale, 0–100. */
+/** One of the three zones, as it currently falls on the `L` axis. */
+export interface HistogramBand {
+  /** Start and end on the `L` scale, 0–100. */
+  from: number;
+  to: number;
+  /** The zone's representative lightness, painted as the band's colour. */
   l: number;
-  active: boolean;
 }
 
 /**
- * Draw the luminance histogram with the current boundaries marked on it (SPEC.md §7).
+ * How strongly the zone bands are painted behind the bars. Higher: the control reads more like
+ * the study and less like a chart; the histogram gets harder to see against it.
+ */
+const BAND_ALPHA = 0.4;
+
+/** Opacity of the histogram bars over the bands. Lower: the bands dominate. */
+const BAR_ALPHA = 0.75;
+
+/**
+ * Draw the value bar's background: the three zones as bands, with the luminance histogram over
+ * them (SPEC.md §7).
  *
- * Marks are positions on the `L` scale, matching the histogram's own axis. The point of the chart
- * is to make the boundaries legible against the image's actual distribution, so it is drawn at
- * device pixel ratio rather than scaled up from a small backing store.
+ * Everything is positioned on the `L` scale, 0–100 across the full width, which is the same axis
+ * the drag handles use — the handles are the boundary markers, so nothing is drawn for them here.
+ * Drawn at device pixel ratio rather than scaled up from a small backing store.
  */
 export function drawHistogram(
   canvas: HTMLCanvasElement,
   hist: Uint32Array,
-  marks: readonly HistogramMark[],
+  bands: readonly HistogramBand[],
 ): void {
   const ratio = window.devicePixelRatio || 1;
   const width = Math.max(1, Math.round(canvas.clientWidth * ratio));
@@ -117,33 +130,33 @@ export function drawHistogram(
   const ctx = context2d(canvas);
   ctx.clearRect(0, 0, width, height);
 
+  const rgb = new Uint8ClampedArray(4);
+  for (const band of bands) {
+    labToSrgbPixel(band.l, 0, 0, rgb, 0);
+    ctx.fillStyle = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${BAND_ALPHA})`;
+    const from = (band.from / 100) * width;
+    ctx.fillRect(from, 0, ((band.to - band.from) / 100) * width, height);
+  }
+
   let peak = 0;
   for (let i = 0; i < hist.length; i++) {
     if (hist[i]! > peak) {
       peak = hist[i]!;
     }
   }
-  if (peak === 0) {
-    return;
-  }
 
-  // Square-root scaling: a photographic histogram usually has one spike tall enough to flatten
-  // everything else into the baseline, and the shape of the tails is what matters here.
-  const scale = height / Math.sqrt(peak);
-  const barWidth = width / hist.length;
+  if (peak > 0) {
+    // Square-root scaling: a photographic histogram usually has one spike tall enough to flatten
+    // everything else into the baseline, and the shape of the tails is what matters here.
+    const scale = height / Math.sqrt(peak);
+    const barWidth = width / hist.length;
 
-  ctx.fillStyle = cssVariable('--line', '#6d6d6d');
-  for (let i = 0; i < hist.length; i++) {
-    const barHeight = Math.sqrt(hist[i]!) * scale;
-    ctx.fillRect(i * barWidth, height - barHeight, Math.ceil(barWidth), barHeight);
-  }
-
-  const markWidth = Math.max(1, Math.round(ratio));
-  for (const mark of marks) {
-    ctx.fillStyle = mark.active
-      ? cssVariable('--control', '#cfcfcf')
-      : cssVariable('--control-muted', '#8a8a8a');
-    const x = Math.round((mark.l / 100) * width);
-    ctx.fillRect(Math.min(x, width - markWidth), 0, markWidth, height);
+    ctx.globalAlpha = BAR_ALPHA;
+    ctx.fillStyle = cssVariable('--text-dim', '#6f6f6f');
+    for (let i = 0; i < hist.length; i++) {
+      const barHeight = Math.sqrt(hist[i]!) * scale;
+      ctx.fillRect(i * barWidth, height - barHeight, Math.ceil(barWidth), barHeight);
+    }
+    ctx.globalAlpha = 1;
   }
 }

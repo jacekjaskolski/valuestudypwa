@@ -416,6 +416,10 @@ body {
   flex-direction: column;
 }
 
+.slider[hidden] {
+  display: none;
+}
+
 .slider__label {
   display: flex;
   justify-content: space-between;

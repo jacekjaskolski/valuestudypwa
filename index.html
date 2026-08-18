@@ -175,6 +175,22 @@
             />
           </div>
 
+          <div class="slider" id="focusControl" hidden>
+            <label class="slider__label" for="focusDepth">
+              Focus depth
+              <output class="slider__value" id="focusDepthValue"></output>
+            </label>
+            <input
+              type="range"
+              id="focusDepth"
+              class="slider__input"
+              min="0"
+              max="100"
+              step="1"
+              value="25"
+            />
+          </div>
+
           <div class="group" id="distantControls" hidden>
             <div class="slider">
               <label class="slider__label" for="distantStart">
@@ -223,7 +239,7 @@
             </label>
             <label class="check" id="preserveForegroundField" hidden>
               <input type="checkbox" id="preserveForeground" class="check__input" />
-              <span>Preserve foreground details</span>
+              <span>Preserve details in focus</span>
             </label>
             <button type="button" id="reset" class="button button--end">Reset</button>
           </div>

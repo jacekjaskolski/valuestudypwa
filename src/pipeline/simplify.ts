@@ -25,6 +25,7 @@
  */
 
 import {
+  FOCUS_WEIGHT_THRESHOLD,
   SIMPLIFY_MAX_AREA_FRACTION,
   SIMPLIFY_MAX_RADIUS_FRACTION,
 } from '../constants';
@@ -307,30 +308,49 @@ export function absorbSmallRegions(
 }
 
 /**
- * Put the detail back wherever the scene is near.
+ * How much a given depth counts as in focus, 0–1.
  *
- * Input: `simplified` and `detailed`, two label maps of the same image — the second being what
- * the first looked like before simplification; `depth` 0–1 where 1 is farthest; `nearerThan`, the
- * depth inside which detail is kept. Output: `out`, written in place, and safe to alias either
- * input since every pixel is decided independently.
+ * A Gaussian centred on `focus`, falling away either side, so the sharp part of the picture is a
+ * slab at a chosen distance rather than everything in front of a line — the same shape as a
+ * camera's depth of field, and controllable the same way.
+ */
+export function focusWeight(depth: number, focus: number, falloff: number): number {
+  if (falloff <= 0) {
+    return depth === focus ? 1 : 0;
+  }
+  const d = (depth - focus) / falloff;
+  return Math.exp(-0.5 * d * d);
+}
+
+/**
+ * Put the detail back wherever the scene is in focus.
  *
- * A painter simplifies the background and keeps the subject sharp, and no amount of tuning a
- * single simplification strength does that, because it applies the same treatment everywhere. This
- * needs no second pass: both maps already exist, so choosing between them per pixel is one walk
- * over the image.
+ * Input: `simplified` and `detailed`, two label maps of the same image — the second being what the
+ * first looked like before simplification; `depth` 0–1 where 1 is farthest; `focus`, the depth to
+ * keep sharp; `falloff`, how fast sharpness is given up either side. Output: `out`, written in
+ * place, and safe to alias either input since every pixel is decided independently.
  *
- * The seam falls exactly on the depth boundary, which is roughly the subject's outline — which is
- * where a painter would put the change in treatment anyway.
+ * A painter simplifies the background and keeps the subject sharp, which no single simplification
+ * strength can do because it treats the whole frame alike. This needs no second pass: both maps
+ * already exist, so choosing between them per pixel is one walk over the image.
+ *
+ * The choice is a threshold on the Gaussian rather than a blend, because a zone label cannot be
+ * half-simplified. What the falloff buys is a band with a near and a far edge, placed where the
+ * painter wants it — not a soft transition.
  */
 export function restoreDetail(
   simplified: ZoneMap,
   detailed: ZoneMap,
   depth: Float32Array,
-  nearerThan: number,
+  focus: number,
+  falloff: number,
   out: ZoneMap,
 ): ZoneMap {
   for (let i = 0; i < out.length; i++) {
-    out[i] = depth[i]! < nearerThan ? detailed[i]! : simplified[i]!;
+    out[i] =
+      focusWeight(depth[i]!, focus, falloff) >= FOCUS_WEIGHT_THRESHOLD
+        ? detailed[i]!
+        : simplified[i]!;
   }
   return out;
 }

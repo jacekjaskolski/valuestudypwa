@@ -11,7 +11,8 @@ import {
   DEFAULT_PERCENTILE_DARK,
   DEFAULT_PERCENTILE_LIGHT,
   DEPTH_NEAR_IS_HIGH,
-  FOREGROUND_DEPTH_LIMIT,
+  FOCUS_DEFAULT_DEPTH,
+  FOCUS_FALLOFF,
   HISTOGRAM_BINS,
   SQUINT_HIGHLIGHT_BLUR_RATIO,
   SQUINT_MAX_BLUR_FRACTION,
@@ -113,8 +114,9 @@ interface Params {
   showDarks: boolean;
   /** Shape simplification strength, 0–1. */
   simplify: number;
-  /** Keep the near part of the scene out of the simplification entirely. */
+  /** Keep detail in a band of the scene, and the depth that band is centred on. */
   preserveForeground: boolean;
+  focusDepth: number;
   /** Squint blur on the reference photo, 0–1. A display effect, not a pipeline stage. */
   squint: number;
   /** Whether squinting keeps bright accents where they are instead of smearing them. */
@@ -144,6 +146,7 @@ let params: Params = {
   // These three mirror the markup's own defaults; `index.html` is the other half of each.
   simplify: 0.1,
   preserveForeground: false,
+  focusDepth: FOCUS_DEFAULT_DEPTH,
   squint: 0,
   keepHighlights: true,
   showDepthMap: false,
@@ -244,7 +247,8 @@ function runCheapPass(image: ImageState, current: Params): void {
         image.simplified,
         image.labels,
         image.depth,
-        FOREGROUND_DEPTH_LIMIT,
+        current.focusDepth,
+        FOCUS_FALLOFF,
         image.simplified,
       );
     }
@@ -415,8 +419,8 @@ const controls = bindControls({
     params = { ...params, simplify: strength };
     scheduleRender();
   },
-  onPreserveForeground: (on) => {
-    params = { ...params, preserveForeground: on };
+  onFocus: (on, depth) => {
+    params = { ...params, preserveForeground: on, focusDepth: depth };
     scheduleRender();
   },
   onSquint: (strength) => {

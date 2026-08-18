@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   absorbSmallRegions,
   createSimplifyScratch,
+  focusWeight,
   majorityFilter,
   restoreDetail,
   simplifyLabels,
@@ -241,43 +242,81 @@ describe('simplifyLabels', () => {
   });
 });
 
+describe('focusWeight', () => {
+  it('is one exactly at the focus depth', () => {
+    expect(focusWeight(0.4, 0.4, 0.2)).toBe(1);
+  });
+
+  it('falls away either side, symmetrically', () => {
+    const near = focusWeight(0.2, 0.5, 0.2);
+    const far = focusWeight(0.8, 0.5, 0.2);
+    expect(near).toBeCloseTo(far, 6);
+    expect(near).toBeLessThan(1);
+  });
+
+  it('falls faster with a tighter falloff', () => {
+    expect(focusWeight(0.7, 0.5, 0.1)).toBeLessThan(focusWeight(0.7, 0.5, 0.3));
+  });
+
+  it('stays within 0–1', () => {
+    for (const d of [0, 0.25, 0.5, 0.75, 1]) {
+      const w = focusWeight(d, 0.5, 0.2);
+      expect(w).toBeGreaterThanOrEqual(0);
+      expect(w).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('degenerates to an exact match rather than dividing by zero', () => {
+    expect(focusWeight(0.5, 0.5, 0)).toBe(1);
+    expect(focusWeight(0.6, 0.5, 0)).toBe(0);
+  });
+});
+
 describe('restoreDetail', () => {
-  it('keeps the simplified map where the scene is far', () => {
-    const simplified = Uint8Array.from([2, 2, 2]);
-    const detailed = Uint8Array.from([0, 1, 2]);
-    const out = new Uint8Array(3);
-    restoreDetail(simplified, detailed, Float32Array.from([1, 1, 1]), 0.4, out);
-    expect(Array.from(out)).toEqual([2, 2, 2]);
+  const simplified = () => Uint8Array.from([2, 2, 2, 2, 2]);
+  const detailed = () => Uint8Array.from([0, 0, 0, 0, 0]);
+  const depths = Float32Array.from([0, 0.25, 0.5, 0.75, 1]);
+
+  it('keeps detail around the focus depth and simplifies away from it', () => {
+    const out = new Uint8Array(5);
+    restoreDetail(simplified(), detailed(), depths, 0.25, 0.18, out);
+    expect(out[1]!).toBe(0); // at the focus depth
+    expect(out[4]!).toBe(2); // far from it
   });
 
-  it('puts the detail back where the scene is near', () => {
-    const simplified = Uint8Array.from([2, 2, 2]);
-    const detailed = Uint8Array.from([0, 1, 2]);
-    const out = new Uint8Array(3);
-    restoreDetail(simplified, detailed, Float32Array.from([0, 0, 0]), 0.4, out);
-    expect(Array.from(out)).toEqual([0, 1, 2]);
+  it('moves the sharp band when the focus moves', () => {
+    const near = new Uint8Array(5);
+    restoreDetail(simplified(), detailed(), depths, 0, 0.18, near);
+    const far = new Uint8Array(5);
+    restoreDetail(simplified(), detailed(), depths, 1, 0.18, far);
+    expect(near[0]!).toBe(0);
+    expect(near[4]!).toBe(2);
+    expect(far[0]!).toBe(2);
+    expect(far[4]!).toBe(0);
   });
 
-  it('splits at the limit, exclusive of it', () => {
-    const simplified = Uint8Array.from([2, 2, 2]);
-    const detailed = Uint8Array.from([0, 0, 0]);
-    const out = new Uint8Array(3);
-    restoreDetail(simplified, detailed, Float32Array.from([0.39, 0.4, 0.41]), 0.4, out);
-    expect(Array.from(out)).toEqual([0, 2, 2]);
+  it('gives the band a far edge as well as a near one, unlike a cutoff', () => {
+    // Focused in the middle: both the nearest and the farthest are simplified.
+    const out = new Uint8Array(5);
+    restoreDetail(simplified(), detailed(), depths, 0.5, 0.12, out);
+    expect(out[0]!).toBe(2);
+    expect(out[2]!).toBe(0);
+    expect(out[4]!).toBe(2);
+  });
+
+  it('widens the band with the falloff', () => {
+    const tight = new Uint8Array(5);
+    restoreDetail(simplified(), detailed(), depths, 0.5, 0.05, tight);
+    const loose = new Uint8Array(5);
+    restoreDetail(simplified(), detailed(), depths, 0.5, 0.6, loose);
+    const sharpCount = (m: Uint8Array): number =>
+      Array.from(m).filter((v) => v === 0).length;
+    expect(sharpCount(loose)).toBeGreaterThan(sharpCount(tight));
   });
 
   it('decides each pixel independently, so it may write into its own input', () => {
-    const simplified = Uint8Array.from([2, 2, 2, 2]);
-    const detailed = Uint8Array.from([0, 1, 0, 1]);
-    restoreDetail(simplified, detailed, Float32Array.from([0, 1, 0, 1]), 0.5, simplified);
-    expect(Array.from(simplified)).toEqual([0, 2, 0, 2]);
-  });
-
-  it('leaves the map untouched when nothing is near enough', () => {
-    const simplified = Uint8Array.from([1, 1]);
-    const detailed = Uint8Array.from([0, 0]);
-    const out = new Uint8Array(2);
-    restoreDetail(simplified, detailed, Float32Array.from([0.5, 0.9]), 0, out);
-    expect(Array.from(out)).toEqual([1, 1]);
+    const map = Uint8Array.from([2, 2]);
+    restoreDetail(map, Uint8Array.from([0, 0]), Float32Array.from([0, 1]), 0, 0.18, map);
+    expect(Array.from(map)).toEqual([0, 2]);
   });
 });

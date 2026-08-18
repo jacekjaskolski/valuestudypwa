@@ -31,7 +31,8 @@ export interface ControlHandlers {
   onAerial: (start: number, strength: number) => void;
   /** The lightness correction on the study. Both values 0–1. */
   onDistant: (on: boolean, start: number, strength: number) => void;
-  onPreserveForeground: (on: boolean) => void;
+  /** Whether detail is kept in focus, and at what depth, 0–1. */
+  onFocus: (on: boolean, depth: number) => void;
   onReset: () => void;
 }
 
@@ -89,6 +90,9 @@ export function bindControls(handlers: ControlHandlers): Controls {
   const aerialStrengthValue = requireElement('aerialStrengthValue', HTMLOutputElement);
   const preserveForegroundInput = requireElement('preserveForeground', HTMLInputElement);
   const preserveForegroundField = requireElement('preserveForegroundField', HTMLLabelElement);
+  const focusControl = requireElement('focusControl', HTMLDivElement);
+  const focusDepth = requireElement('focusDepth', HTMLInputElement);
+  const focusDepthValue = requireElement('focusDepthValue', HTMLOutputElement);
   const distantInput = requireElement('distant', HTMLInputElement);
   const distantField = requireElement('distantField', HTMLLabelElement);
   const distantControls = requireElement('distantControls', HTMLDivElement);
@@ -139,9 +143,15 @@ export function bindControls(handlers: ControlHandlers): Controls {
     distantControls.hidden = !distantInput.checked;
     handlers.onDistant(distantInput.checked, start, strength);
   };
-  preserveForegroundInput.addEventListener('change', () =>
-    handlers.onPreserveForeground(preserveForegroundInput.checked),
-  );
+  const reportFocus = (): void => {
+    const depth = Number(focusDepth.value) / 100;
+    focusDepthValue.textContent = formatStrength(depth);
+    // The slider only appears once the effect is on; a hidden one would just take up room.
+    focusControl.hidden = !preserveForegroundInput.checked;
+    handlers.onFocus(preserveForegroundInput.checked, depth);
+  };
+  preserveForegroundInput.addEventListener('change', reportFocus);
+  focusDepth.addEventListener('input', reportFocus);
   distantInput.addEventListener('change', reportDistant);
   distantStart.addEventListener('input', reportDistant);
   distantStrength.addEventListener('input', reportDistant);
@@ -185,6 +195,7 @@ export function bindControls(handlers: ControlHandlers): Controls {
   aerialStrengthValue.textContent = formatStrength(Number(aerialStrength.value) / 100);
   distantStartValue.textContent = formatStrength(Number(distantStart.value) / 100);
   distantStrengthValue.textContent = formatStrength(Number(distantStrength.value) / 100);
+  focusDepthValue.textContent = formatStrength(Number(focusDepth.value) / 100);
 
   return {
     showReadouts: (dark, light) => {
@@ -225,6 +236,7 @@ export function bindControls(handlers: ControlHandlers): Controls {
         showDepthMapInput.checked = false;
         distantInput.checked = false;
         preserveForegroundInput.checked = false;
+        focusControl.hidden = true;
         distantControls.hidden = true;
       }
     },

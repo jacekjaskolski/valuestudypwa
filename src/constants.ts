@@ -212,13 +212,28 @@ export const AERIAL_DEFAULT_START = 0.35;
 export const AERIAL_DEFAULT_STRENGTH = 0.5;
 
 /**
- * How near a pixel must be to keep its detail when "preserve foreground details" is on.
- *
- * On the 0–1 depth scale, so anything nearer than this escapes simplification entirely.
- *
- * Deliberately a constant while the idea is being judged: the question is whether protecting the
- * foreground helps at all, not where exactly the line should sit. If it does help, this is the
- * first thing to promote to a slider — the right depth plainly differs between a portrait and a
- * landscape.
+ * Where the sharp band sits by default, on the 0–1 depth scale. Near, since a subject usually is.
  */
-export const FOREGROUND_DEPTH_LIMIT = 0.4;
+export const FOCUS_DEFAULT_DEPTH = 0.25;
+
+/**
+ * How quickly detail is given up either side of the focus depth — the standard deviation of the
+ * falloff, in depth units.
+ *
+ * Higher: a deep band, most of the scene keeps its detail and the effect stops being selective.
+ * Lower: a narrow slice in focus and everything else simplified, which on a shallow depth map can
+ * leave nothing sharp at all.
+ */
+export const FOCUS_FALLOFF = 0.18;
+
+/**
+ * How much of the falloff counts as in focus, 0–1.
+ *
+ * A zone label is discrete — a pixel keeps its detail or it does not — so the Gaussian has to be
+ * decided somewhere. At 0.5 the sharp band runs about 1.2 standard deviations either side of the
+ * focus depth, giving it a near and a far limit like a real depth of field.
+ *
+ * Raising it narrows the band; lowering it widens it. It does not soften the transition: for that
+ * the simplification would have to run at several strengths, one pass each.
+ */
+export const FOCUS_WEIGHT_THRESHOLD = 0.5;

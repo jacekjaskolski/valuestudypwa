@@ -1,20 +1,19 @@
 import { describe, expect, it } from 'vitest';
+import { ZONE_L } from '../constants';
 import { labToSrgbPixel } from './color';
 import { buildZoneColours, renderFlat, renderZones } from './render';
 import { ZONE_DARK, ZONE_LIGHT, ZONE_MID } from './threshold';
 
-const ZONE_L = [12, 50, 88] as const;
-
 function tinted(labels: number[], a: number[], b: number[]): Uint8ClampedArray<ArrayBuffer> {
   const out = new Uint8ClampedArray(labels.length * 4);
-  const colours = buildZoneColours(Float32Array.from(a), Float32Array.from(b), [...ZONE_L]);
+  const colours = buildZoneColours(Float32Array.from(a), Float32Array.from(b), ZONE_L);
   renderZones(Uint8Array.from(labels), colours, out);
   return out;
 }
 
 function flat(labels: number[]): Uint8ClampedArray<ArrayBuffer> {
   const out = new Uint8ClampedArray(labels.length * 4);
-  renderFlat(Uint8Array.from(labels), [...ZONE_L], out);
+  renderFlat(Uint8Array.from(labels), ZONE_L, out);
   return out;
 }
 
@@ -27,7 +26,7 @@ function expected(L: number, a: number, b: number): number[] {
 
 describe('buildZoneColours', () => {
   it('produces one full-size buffer per zone', () => {
-    const colours = buildZoneColours(new Float32Array(5), new Float32Array(5), [...ZONE_L]);
+    const colours = buildZoneColours(new Float32Array(5), new Float32Array(5), ZONE_L);
     expect(colours).toHaveLength(3);
     for (const buffer of colours) {
       expect(buffer.length).toBe(20);
@@ -38,18 +37,18 @@ describe('buildZoneColours', () => {
     const colours = buildZoneColours(
       Float32Array.from([20]),
       Float32Array.from([-30]),
-      [...ZONE_L],
+      ZONE_L,
     );
-    expect(Array.from(colours[1]!)).toEqual(expected(ZONE_L[1], 20, -30));
+    expect(Array.from(colours[1]!)).toEqual(expected(ZONE_L[1]!, 20, -30));
   });
 });
 
 describe('renderZones', () => {
   it('paints each label at its zone lightness, keeping the source chroma', () => {
     const out = tinted([ZONE_DARK, ZONE_MID, ZONE_LIGHT], [20, 20, 20], [-30, -30, -30]);
-    expect(Array.from(out.slice(0, 4))).toEqual(expected(ZONE_L[0], 20, -30));
-    expect(Array.from(out.slice(4, 8))).toEqual(expected(ZONE_L[1], 20, -30));
-    expect(Array.from(out.slice(8, 12))).toEqual(expected(ZONE_L[2], 20, -30));
+    expect(Array.from(out.slice(0, 4))).toEqual(expected(ZONE_L[0]!, 20, -30));
+    expect(Array.from(out.slice(4, 8))).toEqual(expected(ZONE_L[1]!, 20, -30));
+    expect(Array.from(out.slice(8, 12))).toEqual(expected(ZONE_L[2]!, 20, -30));
   });
 
   it('gives pixels in the same zone the same lightness but different colour', () => {
@@ -91,11 +90,12 @@ describe('renderFlat', () => {
     expect(out[4]!).toBeLessThan(out[8]!);
   });
 
-  it('does not crush the extremes to pure black and white', () => {
-    // SPEC.md §6.6: 0/128/255 crushes the ends and reads harder than any painting could be.
+  it('paints the lights as paper white and keeps the darks short of black', () => {
+    // In watercolour the light value is not paint, it is the untouched paper. The dark end stays
+    // short of black because no wash reaches it. See the ZONE_L comment in constants.ts.
     const out = flat([ZONE_DARK, ZONE_LIGHT]);
     expect(out[0]!).toBeGreaterThan(0);
-    expect(out[4]!).toBeLessThan(255);
+    expect(out[4]!).toBe(255);
   });
 
   it('matches the tinted render for a pixel that has no chroma', () => {

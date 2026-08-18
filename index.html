@@ -8,6 +8,27 @@
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
+    <!--
+      Squint with highlights kept: blur the photo twice and take the lighter of each pair, so
+      bright accents stay put while everything darker melts together. A plain CSS blur cannot do
+      this, and doing it with a second stacked canvas would risk the photo and the study no longer
+      being laid out identically.
+    -->
+    <svg class="filters" aria-hidden="true" focusable="false">
+      <filter
+        id="squintHighlights"
+        x="-20%"
+        y="-20%"
+        width="140%"
+        height="140%"
+        color-interpolation-filters="sRGB"
+      >
+        <feGaussianBlur in="SourceGraphic" stdDeviation="0" result="soft" id="squintSoft" />
+        <feGaussianBlur in="SourceGraphic" stdDeviation="0" result="crisp" id="squintCrisp" />
+        <feBlend in="crisp" in2="soft" mode="lighten" />
+      </filter>
+    </svg>
+
     <div class="app" id="app" data-view="both">
       <header class="header">
         <h1 class="header__title">Value Study</h1>
@@ -20,23 +41,15 @@
 
       <main class="panels">
         <figure class="panel panel--photo">
-          <!--
-            The photo frame is itself the file picker, so the button sits where the photo goes and
-            the same target swaps the photo later. No `capture` attribute: on iOS it forces the
-            camera and removes the photo library from the picker. See NOTES.md.
-          -->
-          <label class="frame frame--empty frame--pickable" id="photoFrame">
-            <input type="file" id="fileInput" class="frame__input" accept="image/*" />
+          <div class="frame frame--empty" id="photoFrame">
             <canvas id="originalCanvas" class="frame__canvas"></canvas>
-            <span class="frame__placeholder">
-              <span class="frame__button">Load photo</span>
-            </span>
-          </label>
-          <figcaption class="panel__label" id="photoCaption">Photo</figcaption>
+            <span class="frame__placeholder">No photo loaded</span>
+          </div>
+          <figcaption class="panel__label">Photo</figcaption>
         </figure>
 
         <figure class="panel panel--study">
-          <div class="frame frame--empty frame--paper" id="studyFrame">
+          <div class="frame frame--empty" id="studyFrame">
             <canvas id="studyCanvas" class="frame__canvas"></canvas>
             <span class="frame__placeholder" id="studyPlaceholder">
               Your value study appears here
@@ -89,7 +102,15 @@
               Simplify shapes
               <output class="slider__value" id="simplifyValue"></output>
             </label>
-            <input type="range" id="simplify" class="slider__input" min="0" max="100" step="1" value="0" />
+            <input
+              type="range"
+              id="simplify"
+              class="slider__input"
+              min="0"
+              max="100"
+              step="1"
+              value="0"
+            />
           </div>
         </div>
 
@@ -99,8 +120,20 @@
               Squint
               <output class="slider__value" id="squintValue"></output>
             </label>
-            <input type="range" id="squint" class="slider__input" min="0" max="100" step="1" value="0" />
+            <input
+              type="range"
+              id="squint"
+              class="slider__input"
+              min="0"
+              max="100"
+              step="1"
+              value="0"
+            />
           </div>
+          <label class="check">
+            <input type="checkbox" id="keepHighlights" class="check__input" />
+            <span>Keep highlights</span>
+          </label>
         </div>
 
         <div class="row">
@@ -112,7 +145,18 @@
             <input type="checkbox" id="greyscale" class="check__input" checked />
             <span>Flat grey</span>
           </label>
-          <button type="button" id="reset" class="button">Reset</button>
+
+          <div class="row__end">
+            <!--
+              No `capture` attribute: on iOS it forces the camera and removes the photo library
+              from the picker. See NOTES.md.
+            -->
+            <label class="button">
+              <input type="file" id="fileInput" class="button__input" accept="image/*" />
+              <span id="loadLabel">Load photo</span>
+            </label>
+            <button type="button" id="reset" class="button">Reset</button>
+          </div>
         </div>
       </section>
     </div>

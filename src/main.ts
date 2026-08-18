@@ -9,7 +9,7 @@ import {
   DEFAULT_PERCENTILE_DARK,
   DEFAULT_PERCENTILE_LIGHT,
   HISTOGRAM_BINS,
-  SETTLE_DELAY_MS,
+  SQUINT_HIGHLIGHT_BLUR_RATIO,
   SQUINT_MAX_BLUR_FRACTION,
   WORKING_RESOLUTION,
   ZONE_L,
@@ -28,9 +28,8 @@ import {
   type ZoneColours,
 } from './pipeline/render';
 import {
-  absorbSmallRegions,
   createSimplifyScratch,
-  majorityFilter,
+  simplifyLabels,
   simplifySettings,
   type SimplifyScratch,
 } from './pipeline/simplify';
@@ -96,16 +95,19 @@ interface Params {
   simplify: number;
   /** Squint blur on the reference photo, 0–1. A display effect, not a pipeline stage. */
   squint: number;
+  /** Whether squinting keeps bright accents where they are instead of smearing them. */
+  keepHighlights: boolean;
   view: View;
 }
 
-const photoFrame = requireElement('photoFrame', HTMLLabelElement);
+const photoFrame = requireElement('photoFrame', HTMLDivElement);
 const studyFrame = requireElement('studyFrame', HTMLDivElement);
 const studyPlaceholder = requireElement('studyPlaceholder', HTMLSpanElement);
-const photoCaption = requireElement('photoCaption', HTMLElement);
 const originalCanvas = requireCanvas('originalCanvas');
 const studyCanvas = requireCanvas('studyCanvas');
 const histogramCanvas = requireCanvas('histogram');
+const squintSoft = requireElement('squintSoft', SVGFEGaussianBlurElement);
+const squintCrisp = requireElement('squintCrisp', SVGFEGaussianBlurElement);
 
 let state: ImageState | null = null;
 let params: Params = {
@@ -115,6 +117,7 @@ let params: Params = {
   showDarks: false,
   simplify: 0,
   squint: 0,
+  keepHighlights: false,
   view: 'both',
 };
 
@@ -153,12 +156,12 @@ function shareBelow(image: ImageState | null, l: number): string {
 /**
  * Cheap pass: SPEC.md §4 steps 6–9. Runs on every control change.
  *
- * `settled` is the full-resolution pass SPEC.md §4 asks for on release. Small-region removal costs
- * roughly as much again as everything else put together, and unlike the majority filter it is a
- * finishing touch rather than the thing the Simplify slider is visibly doing — so it waits until
- * the controls stop moving.
+ * Simplification runs in full before anything is drawn. An earlier version ran only the cheap half
+ * during a drag and finished the job once the controls settled, which was faster but made the
+ * study visibly change again a moment after the finger stopped — and a study that keeps moving
+ * after you do is worse than one that updates a few times a second. See NOTES.md.
  */
-function runCheapPass(image: ImageState, current: Params, settled: boolean): void {
+function runCheapPass(image: ImageState, current: Params): void {
   const started = performance.now();
   const { width, height } = image.source;
 
@@ -173,11 +176,8 @@ function runCheapPass(image: ImageState, current: Params, settled: boolean): voi
   let labels = image.labels;
   if (current.simplify > 0) {
     const settings = simplifySettings(current.simplify, width, height);
-    majorityFilter(labels, width, height, settings.radius, image.scratch, image.simplified);
+    simplifyLabels(labels, width, height, settings, image.scratch, image.simplified);
     labels = image.simplified;
-    if (settled) {
-      absorbSmallRegions(labels, width, height, settings.minArea, image.scratch, labels);
-    }
   }
 
   if (current.greyscale) {
@@ -193,13 +193,32 @@ function runCheapPass(image: ImageState, current: Params, settled: boolean): voi
     { from: applied.light, to: 100, l: ZONE_L[2]! },
   ]);
 
-  recordCheapPassTime(performance.now() - started, settled);
+  recordCheapPassTime(performance.now() - started);
 }
 
-/** Squinting is simulated as a blur on the displayed photo, scaled to how large it is drawn. */
+/**
+ * Squinting is simulated as a blur on the displayed photo, scaled to how large it is drawn.
+ *
+ * With highlights kept, an SVG filter blurs the photo twice and takes the lighter of each pair, so
+ * bright accents stay roughly where they are while everything darker melts together — closer to
+ * what squinting actually does than an even blur.
+ */
 function applySquint(current: Params): void {
   const blur = current.squint * SQUINT_MAX_BLUR_FRACTION * originalCanvas.clientWidth;
-  originalCanvas.style.filter = blur > 0 ? `blur(${blur.toFixed(1)}px)` : '';
+  if (blur <= 0) {
+    originalCanvas.style.filter = '';
+    return;
+  }
+  if (current.keepHighlights) {
+    squintSoft.setAttribute('stdDeviation', blur.toFixed(2));
+    squintCrisp.setAttribute(
+      'stdDeviation',
+      (blur * SQUINT_HIGHLIGHT_BLUR_RATIO).toFixed(2),
+    );
+    originalCanvas.style.filter = 'url(#squintHighlights)';
+  } else {
+    originalCanvas.style.filter = `blur(${blur.toFixed(1)}px)`;
+  }
 }
 
 /**
@@ -207,12 +226,8 @@ function applySquint(current: Params): void {
  * NOTES.md. Dev builds only.
  */
 const cheapPassTimes: number[] = [];
-function recordCheapPassTime(ms: number, settled: boolean): void {
+function recordCheapPassTime(ms: number): void {
   if (!import.meta.env.DEV) {
-    return;
-  }
-  if (settled) {
-    console.debug(`settled pass: ${ms.toFixed(1)}ms`);
     return;
   }
   cheapPassTimes.push(ms);
@@ -229,22 +244,14 @@ function recordCheapPassTime(ms: number, settled: boolean): void {
 }
 
 let pendingFrame = 0;
-let settleTimer = 0;
 function scheduleRender(): void {
-  window.clearTimeout(settleTimer);
-  settleTimer = window.setTimeout(() => {
-    if (state && params.simplify > 0) {
-      runCheapPass(state, params, true);
-    }
-  }, SETTLE_DELAY_MS);
-
   if (pendingFrame !== 0) {
     return;
   }
   pendingFrame = requestAnimationFrame(() => {
     pendingFrame = 0;
     if (state) {
-      runCheapPass(state, params, false);
+      runCheapPass(state, params);
     }
   });
 }
@@ -292,6 +299,10 @@ const controls = bindControls({
     params = { ...params, squint: strength };
     applySquint(params);
   },
+  onKeepHighlights: (on) => {
+    params = { ...params, keepHighlights: on };
+    applySquint(params);
+  },
   onView: (view) => {
     params = { ...params, view };
     // The panels resize, so both the study's fit and the blur's scale change with them.
@@ -324,13 +335,13 @@ async function loadFile(file: Blob): Promise<void> {
   drawPixels(originalCanvas, rgba, width, height);
   photoFrame.classList.remove('frame--empty');
   studyFrame.classList.remove('frame--empty');
-  photoCaption.textContent = 'Photo — tap to change';
+  controls.showLoaded(true);
 
   // A photo opens on the suggestion, so the painter sees a usable study without touching a slider.
   params = { ...params, cuts: state.suggested };
   showCuts();
   applySquint(params);
-  runCheapPass(state, params, true);
+  runCheapPass(state, params);
 }
 
 controls.showView(params.view);

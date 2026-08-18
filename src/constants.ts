@@ -15,11 +15,15 @@ export const WORKING_RESOLUTION = 1024;
 /**
  * The lightness (CIELAB `L`, 0–100) each zone is painted at, indexed dark / mid / light.
  *
- * Not 0 / 50 / 100: pure black and white crush the extremes and make the study read harder than
- * any painting could be. Spreading them wider raises contrast between the three steps; pulling
- * them together makes the study flatter and closer to the photo's own range.
+ * The light zone is pure white because in watercolour it is not paint at all — it is the paper,
+ * left alone. SPEC.md §6.6 argued for near-white on the grounds that pure values crush the
+ * extremes; that reasoning holds for the dark end, which stays short of black because no wash
+ * reaches it, but not for the light end.
+ *
+ * Spreading the three wider raises contrast between the steps; pulling them together makes the
+ * study flatter and closer to the photo's own range.
  */
-export const ZONE_L: readonly number[] = [12, 50, 88];
+export const ZONE_L: readonly number[] = [12, 50, 100];
 
 /**
  * Number of bins in the luminance histogram.
@@ -128,9 +132,13 @@ export const SIMPLIFY_MAX_AREA_FRACTION = 0.01;
 export const SQUINT_MAX_BLUR_FRACTION = 0.025;
 
 /**
- * How long the controls must be still before the settled pass runs, in milliseconds.
+ * With "keep highlights" on, how much of the main blur the highlight layer gets.
  *
- * Longer: dragging stays cheap but the finished study takes noticeably long to appear.
- * Shorter: the expensive stage fires mid-drag and the interaction stutters.
+ * Squinting does not smear a bright accent the way a plain blur does — it stays bright and stays
+ * roughly where it is, while everything darker melts together. So the photo is blurred twice and
+ * the two are combined by taking the lighter of each pair.
+ *
+ * Higher: highlights soften along with everything else and the toggle stops mattering.
+ * Lower: bright accents stay hard-edged and the picture looks masked rather than squinted.
  */
-export const SETTLE_DELAY_MS = 160;
+export const SQUINT_HIGHLIGHT_BLUR_RATIO = 0.3;

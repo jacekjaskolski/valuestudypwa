@@ -23,6 +23,7 @@ export interface ControlHandlers {
   onSimplify: (strength: number) => void;
   /** 0–1. */
   onSquint: (strength: number) => void;
+  onKeepHighlights: (on: boolean) => void;
   onView: (view: View) => void;
   onReset: () => void;
 }
@@ -37,6 +38,8 @@ export interface Controls {
   /** Reflect the dark preview being switched on by something other than its own checkbox. */
   showDarksState: (on: boolean) => void;
   showView: (view: View) => void;
+  /** Once a photo is loaded, the load button becomes a replace button. */
+  showLoaded: (loaded: boolean) => void;
 }
 
 /** A strength slider reads as a plain percentage, and says "off" when it is doing nothing. */
@@ -53,6 +56,8 @@ export function bindControls(handlers: ControlHandlers): Controls {
   const simplifyValue = requireElement('simplifyValue', HTMLOutputElement);
   const squintInput = requireElement('squint', HTMLInputElement);
   const squintValue = requireElement('squintValue', HTMLOutputElement);
+  const keepHighlightsInput = requireElement('keepHighlights', HTMLInputElement);
+  const loadLabel = requireElement('loadLabel', HTMLSpanElement);
   const resetButton = requireElement('reset', HTMLButtonElement);
   const darkValue = requireElement('cutDarkValue', HTMLOutputElement);
   const lightValue = requireElement('cutLightValue', HTMLOutputElement);
@@ -79,6 +84,10 @@ export function bindControls(handlers: ControlHandlers): Controls {
     simplifyValue.textContent = formatStrength(strength);
     handlers.onSimplify(strength);
   });
+
+  keepHighlightsInput.addEventListener('change', () =>
+    handlers.onKeepHighlights(keepHighlightsInput.checked),
+  );
 
   squintInput.addEventListener('input', () => {
     const strength = Number(squintInput.value) / 100;
@@ -115,5 +124,8 @@ export function bindControls(handlers: ControlHandlers): Controls {
       showDarksInput.checked = on;
     },
     showView,
+    showLoaded: (loaded) => {
+      loadLabel.textContent = loaded ? 'Replace photo' : 'Load photo';
+    },
   };
 }

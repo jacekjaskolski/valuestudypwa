@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ZONE_L } from '../constants';
 import { srgbToLab } from './color';
 import { buildHistogram, percentilesToCuts, suggestPercentiles } from './histogram';
 import { buildZoneColours, renderFlat, renderZones } from './render';
@@ -60,7 +61,7 @@ describe('whole pipeline on a synthetic photo', () => {
     const t2 = performance.now();
     const suggestion = suggestPercentiles(lab.L, width, height);
     const t3 = performance.now();
-    const zoneColours = buildZoneColours(lab.a, lab.b, [12, 50, 88]);
+    const zoneColours = buildZoneColours(lab.a, lab.b, ZONE_L);
     const t4 = performance.now();
 
     const labels = new Uint8Array(width * height);
@@ -75,7 +76,7 @@ describe('whole pipeline on a synthetic photo', () => {
       cheap.push(performance.now() - start);
     }
     const greyStart = performance.now();
-    renderFlat(labels, [12, 50, 88], out);
+    renderFlat(labels, ZONE_L, out);
     const greyTime = performance.now() - greyStart;
 
     const settings = simplifySettings(1, width, height);

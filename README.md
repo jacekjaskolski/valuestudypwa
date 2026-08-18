@@ -7,7 +7,7 @@ Runs entirely in the browser. No backend, no accounts, no analytics; the photo n
 device.
 
 Rewrite of [jacekjaskolski.github.io/valuestudy](https://jacekjaskolski.github.io/valuestudy),
-which works and is in daily use. What changed and why is in `SPEC.md` §10.
+which works and is in daily use.
 
 ## What it does
 
@@ -46,13 +46,10 @@ It is a Vite app, so a plain static server will not do — `index.html` points a
 - `src/ui/` — canvas, controls, and the value bar. The only code allowed to touch the DOM.
 - `src/constants.ts` — everything tuned by eye, each with a note on what changing it does.
 
-`SPEC.md` is the build spec. `NOTES.md` records what was tried, measured and rejected — the tuning
-is empirical and the reasoning is easy to lose.
-
 ## Status
 
-Built through step 6 of `SPEC.md` §9. Still to come: depth-based aerial perspective correction, and
-the PWA shell that makes it installable and offline-capable.
+Working, and in use. Still to come: depth-based aerial perspective correction, and the PWA shell
+that makes it installable and offline-capable.
 
 ## Licence
 

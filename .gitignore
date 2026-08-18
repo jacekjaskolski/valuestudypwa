@@ -2,3 +2,10 @@ node_modules/
 dist/
 .DS_Store
 *.local
+
+# Working documents: the build spec, the agent instructions, and the record of what was tried,
+# measured and rejected. Kept local — the empirical tuning in NOTES.md is the part worth keeping
+# to ourselves, not the code it produced.
+CLAUDE.md
+SPEC.md
+NOTES.md

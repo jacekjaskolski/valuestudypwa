@@ -8,59 +8,70 @@
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <main class="app">
-      <section class="panels" id="panels" hidden>
-        <figure class="panel panel--original">
-          <canvas id="originalCanvas" class="panel__canvas"></canvas>
-          <figcaption class="panel__label">Photo</figcaption>
-        </figure>
-        <figure class="panel panel--study">
-          <canvas id="studyCanvas" class="panel__canvas"></canvas>
-          <figcaption class="panel__label">Value study</figcaption>
-        </figure>
-      </section>
+    <div class="app">
+      <header class="header">
+        <h1 class="header__title">Value Study</h1>
+      </header>
 
-      <p class="empty" id="emptyState">Load a photo to start.</p>
+      <main class="panels">
+        <figure class="panel">
+          <!--
+            The photo frame is itself the file picker, so the button sits where the photo goes and
+            the same target swaps the photo later. No `capture` attribute: on iOS it forces the
+            camera and removes the photo library from the picker. See NOTES.md.
+          -->
+          <label class="frame frame--empty frame--pickable" id="photoFrame">
+            <input type="file" id="fileInput" class="frame__input" accept="image/*" />
+            <canvas id="originalCanvas" class="frame__canvas"></canvas>
+            <span class="frame__placeholder">
+              <span class="frame__button">Load photo</span>
+            </span>
+          </label>
+          <figcaption class="panel__label" id="photoCaption">Photo</figcaption>
+        </figure>
+
+        <figure class="panel panel--study">
+          <div class="frame frame--empty" id="studyFrame">
+            <canvas id="studyCanvas" class="frame__canvas"></canvas>
+            <span class="frame__placeholder" id="studyPlaceholder">
+              Your value study appears here
+            </span>
+          </div>
+          <figcaption class="panel__label">Study</figcaption>
+        </figure>
+      </main>
 
       <section class="controls">
-        <div class="study-controls" id="studyControls" hidden>
-          <canvas id="histogram" class="histogram" aria-hidden="true"></canvas>
+        <canvas id="histogram" class="histogram" aria-hidden="true"></canvas>
 
-          <div class="sliders">
-            <div class="slider">
-              <label class="slider__label" for="cutDark">
-                Darks <output class="slider__value" id="cutDarkValue" for="cutDark"></output>
-              </label>
-              <input type="range" id="cutDark" class="slider__input" min="0" max="100" step="1" />
-            </div>
-            <div class="slider">
-              <label class="slider__label" for="cutLight">
-                Lights <output class="slider__value" id="cutLightValue" for="cutLight"></output>
-              </label>
-              <input type="range" id="cutLight" class="slider__input" min="0" max="100" step="1" />
-            </div>
-          </div>
-
-          <div class="row">
-            <label class="check">
-              <input type="checkbox" id="greyscale" class="check__input" />
-              <span>Flat grey</span>
+        <div class="sliders">
+          <div class="slider">
+            <label class="slider__label" for="cutDark">
+              Darks <output class="slider__value" id="cutDarkValue" for="cutDark"></output>
             </label>
-            <button type="button" id="reset" class="button">Reset</button>
+            <input type="range" id="cutDark" class="slider__input" min="0" max="100" step="1" />
+          </div>
+          <div class="slider">
+            <label class="slider__label" for="cutLight">
+              Lights <output class="slider__value" id="cutLightValue" for="cutLight"></output>
+            </label>
+            <input type="range" id="cutLight" class="slider__input" min="0" max="100" step="1" />
           </div>
         </div>
 
-        <label class="file">
-          <!--
-            No `capture` attribute: on iOS it forces the camera and removes the photo library from
-            the picker. Plain `accept="image/*"` already offers Take Photo alongside the library.
-            See NOTES.md.
-          -->
-          <input type="file" id="fileInput" class="file__input" accept="image/*" />
-          <span class="file__label">Load photo</span>
-        </label>
+        <div class="row">
+          <label class="check">
+            <input type="checkbox" id="showDarks" class="check__input" />
+            <span>Show darks</span>
+          </label>
+          <label class="check">
+            <input type="checkbox" id="greyscale" class="check__input" checked />
+            <span>Flat grey</span>
+          </label>
+          <button type="button" id="reset" class="button">Reset</button>
+        </div>
       </section>
-    </main>
+    </div>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

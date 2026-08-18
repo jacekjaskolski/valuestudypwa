@@ -87,17 +87,24 @@ function cssVariable(name: string, fallback: string): string {
   return value === '' ? fallback : value;
 }
 
+/** A boundary drawn on the histogram. Muted marks still hold a value but are not cutting. */
+export interface HistogramMark {
+  /** Position on the `L` scale, 0–100. */
+  l: number;
+  active: boolean;
+}
+
 /**
  * Draw the luminance histogram with the current boundaries marked on it (SPEC.md §7).
  *
- * `marks` are positions on the `L` scale (0–100), matching the histogram's own axis. The point of
- * the chart is to make the boundaries legible against the image's actual distribution, so it is
- * drawn at device pixel ratio rather than scaled up from a small backing store.
+ * Marks are positions on the `L` scale, matching the histogram's own axis. The point of the chart
+ * is to make the boundaries legible against the image's actual distribution, so it is drawn at
+ * device pixel ratio rather than scaled up from a small backing store.
  */
 export function drawHistogram(
   canvas: HTMLCanvasElement,
   hist: Uint32Array,
-  marks: readonly number[],
+  marks: readonly HistogramMark[],
 ): void {
   const ratio = window.devicePixelRatio || 1;
   const width = Math.max(1, Math.round(canvas.clientWidth * ratio));
@@ -131,10 +138,12 @@ export function drawHistogram(
     ctx.fillRect(i * barWidth, height - barHeight, Math.ceil(barWidth), barHeight);
   }
 
-  ctx.fillStyle = cssVariable('--control', '#cfcfcf');
   const markWidth = Math.max(1, Math.round(ratio));
   for (const mark of marks) {
-    const x = Math.round((mark / 100) * width);
+    ctx.fillStyle = mark.active
+      ? cssVariable('--control', '#cfcfcf')
+      : cssVariable('--control-muted', '#8a8a8a');
+    const x = Math.round((mark.l / 100) * width);
     ctx.fillRect(Math.min(x, width - markWidth), 0, markWidth, height);
   }
 }

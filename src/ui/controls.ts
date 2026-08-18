@@ -13,15 +13,17 @@ export interface ControlHandlers {
   /** One of the two boundaries moved. `moved` names which, so ordering can be clamped correctly. */
   onBoundaryMoved: (boundaries: Boundaries, moved: 'dark' | 'light') => void;
   onGreyscale: (on: boolean) => void;
+  onShowDarks: (on: boolean) => void;
   onReset: () => void;
 }
 
 export interface Controls {
   /** Push model state back into the widgets, after clamping or a reset. */
   showBoundaries: (boundaries: Boundaries) => void;
-  /** Reveal the study controls once there is an image to apply them to. */
-  setStudyControlsVisible: (visible: boolean) => void;
+  /** Reflect the dark preview being switched on by something other than its own checkbox. */
+  showDarksState: (on: boolean) => void;
   greyscale: () => boolean;
+  showDarks: () => boolean;
 }
 
 /**
@@ -33,9 +35,9 @@ function formatBoundary(percentile: number): string {
 }
 
 export function bindControls(handlers: ControlHandlers): Controls {
-  const studyControls = requireElement('studyControls', HTMLDivElement);
   const fileInput = requireElement('fileInput', HTMLInputElement);
   const greyscaleInput = requireElement('greyscale', HTMLInputElement);
+  const showDarksInput = requireElement('showDarks', HTMLInputElement);
   const resetButton = requireElement('reset', HTMLButtonElement);
   const darkInput = requireElement('cutDark', HTMLInputElement);
   const lightInput = requireElement('cutLight', HTMLInputElement);
@@ -67,13 +69,15 @@ export function bindControls(handlers: ControlHandlers): Controls {
   darkInput.addEventListener('input', () => handlers.onBoundaryMoved(readBoundaries(), 'dark'));
   lightInput.addEventListener('input', () => handlers.onBoundaryMoved(readBoundaries(), 'light'));
   greyscaleInput.addEventListener('change', () => handlers.onGreyscale(greyscaleInput.checked));
+  showDarksInput.addEventListener('change', () => handlers.onShowDarks(showDarksInput.checked));
   resetButton.addEventListener('click', () => handlers.onReset());
 
   return {
     showBoundaries,
-    setStudyControlsVisible: (visible) => {
-      studyControls.hidden = !visible;
+    showDarksState: (on) => {
+      showDarksInput.checked = on;
     },
     greyscale: () => greyscaleInput.checked,
+    showDarks: () => showDarksInput.checked,
   };
 }

@@ -11,6 +11,7 @@
   --text: #e6e6e6;
   --text-dim: #b4b4b4;
   --control: #cfcfcf;
+  --control-muted: #8a8a8a;
 
   --gap: 0.75rem;
   --radius: 2px;
@@ -46,6 +47,18 @@ body {
   min-height: 100dvh;
 }
 
+/* --- header ------------------------------------------------------------- */
+
+/* There is no headline to set here, so the title is sized like a label, not a banner. */
+.header__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
 /* --- image panels ------------------------------------------------------- */
 
 /*
@@ -65,10 +78,6 @@ body {
   }
 }
 
-.panels[hidden] {
-  display: none;
-}
-
 .panel {
   margin: 0;
   display: flex;
@@ -76,12 +85,65 @@ body {
   gap: 0.35rem;
 }
 
-.panel__canvas {
+/*
+ * A frame holds either a canvas or its placeholder. Empty, it keeps a photo-shaped hole so the
+ * whole interface is laid out from the moment the page opens; loaded, the canvas sets the height.
+ */
+.frame {
+  display: block;
+  position: relative;
+  width: 100%;
+  background: var(--surface);
+  border-radius: var(--radius);
+}
+
+.frame--empty {
+  aspect-ratio: 4 / 3;
+  border: 1px dashed var(--line);
+}
+
+.frame--pickable {
+  cursor: pointer;
+}
+
+.frame__canvas {
   display: block;
   width: 100%;
   height: auto;
-  background: var(--surface);
   border-radius: var(--radius);
+}
+
+.frame--empty .frame__canvas {
+  display: none;
+}
+
+.frame__placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.frame:not(.frame--empty) .frame__placeholder {
+  display: none;
+}
+
+.frame__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.frame__input:focus-visible ~ .frame__placeholder .frame__button,
+.frame__input:focus-visible ~ .frame__canvas {
+  outline: 2px solid var(--control);
+  outline-offset: 2px;
 }
 
 .panel__label {
@@ -91,19 +153,6 @@ body {
   text-transform: uppercase;
 }
 
-/* --- empty state -------------------------------------------------------- */
-
-.empty {
-  margin: 0;
-  padding: 3rem 1rem;
-  text-align: center;
-  color: var(--text-dim);
-}
-
-.empty[hidden] {
-  display: none;
-}
-
 /* --- controls ----------------------------------------------------------- */
 
 .controls {
@@ -111,16 +160,6 @@ body {
   flex-direction: column;
   gap: var(--gap);
   margin-top: auto;
-}
-
-.study-controls {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap);
-}
-
-.study-controls[hidden] {
-  display: none;
 }
 
 /*
@@ -234,7 +273,7 @@ body {
 }
 
 .button,
-.file__label {
+.frame__button {
   display: inline-block;
   padding: 0.6rem 1rem;
   border: 1px solid var(--line);
@@ -246,20 +285,11 @@ body {
   user-select: none;
 }
 
+.button {
+  margin-left: auto;
+}
+
 .button:focus-visible {
-  outline: 2px solid var(--control);
-  outline-offset: 2px;
-}
-
-.file__input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  overflow: hidden;
-}
-
-.file__input:focus-visible + .file__label {
   outline: 2px solid var(--control);
   outline-offset: 2px;
 }

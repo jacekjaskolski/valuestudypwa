@@ -55,8 +55,11 @@ interface ImageState {
    */
   hist: Uint32Array;
   suggested: Boundaries;
-  /** Every pixel's colour in every zone, so the cheap pass is a byte gather. */
-  zoneColours: ZoneColours;
+  /**
+   * Every pixel's colour in every zone, so the cheap pass is a byte gather. Built on demand: the
+   * study opens in flat grey, which does not need it, and it costs ~50ms and ~9MB.
+   */
+  zoneColours: ZoneColours | null;
   labels: ZoneMap;
   output: Rgba;
 }
@@ -65,10 +68,17 @@ interface Params {
   /** Percentiles of the image's own luminance, not positions on the `L` scale. */
   boundaries: Boundaries;
   greyscale: boolean;
+  /**
+   * Whether the dark zone is painted. Off, the darks fall back into the mid zone; the boundary
+   * keeps its value either way, so switching it back on restores what was there.
+   */
+  showDarks: boolean;
 }
 
-const panels = requireElement('panels', HTMLElement);
-const emptyState = requireElement('emptyState', HTMLParagraphElement);
+const photoFrame = requireElement('photoFrame', HTMLLabelElement);
+const studyFrame = requireElement('studyFrame', HTMLDivElement);
+const studyPlaceholder = requireElement('studyPlaceholder', HTMLSpanElement);
+const photoCaption = requireElement('photoCaption', HTMLElement);
 const originalCanvas = requireCanvas('originalCanvas');
 const studyCanvas = requireCanvas('studyCanvas');
 const histogramCanvas = requireCanvas('histogram');
@@ -76,7 +86,8 @@ const histogramCanvas = requireCanvas('histogram');
 let state: ImageState | null = null;
 let params: Params = {
   boundaries: { dark: DEFAULT_PERCENTILE_DARK, light: DEFAULT_PERCENTILE_LIGHT },
-  greyscale: false,
+  greyscale: true,
+  showDarks: false,
 };
 
 /** Expensive pass: SPEC.md §4 steps 1–5. Runs once per image. */
@@ -88,10 +99,15 @@ async function runExpensivePass(file: Blob): Promise<ImageState> {
     lab,
     hist: buildHistogram(lab.L, HISTOGRAM_BINS),
     suggested: suggestPercentiles(lab.L, source.width, source.height),
-    zoneColours: buildZoneColours(lab.a, lab.b, ZONE_L),
+    zoneColours: null,
     labels: new Uint8Array(source.width * source.height),
     output: new Uint8ClampedArray(source.rgba.length),
   };
+}
+
+function zoneColoursOf(image: ImageState): ZoneColours {
+  image.zoneColours ??= buildZoneColours(image.lab.a, image.lab.b, ZONE_L);
+  return image.zoneColours;
 }
 
 /** Cheap pass: SPEC.md §4 steps 6–9. Runs on every control change. */
@@ -99,14 +115,22 @@ function runCheapPass(image: ImageState, current: Params): void {
   const started = performance.now();
 
   const cuts = percentilesToCuts(image.hist, current.boundaries);
-  thresholdL(image.lab.L, cuts, image.labels);
+  // Hiding the darks is a preview toggle, not an edit. Nothing has an `L` below zero, so a dark
+  // boundary at zero matches nothing and every dark pixel falls into the mid zone — while the
+  // boundary the painter set is left exactly where it was.
+  const applied = current.showDarks ? cuts : { dark: 0, light: cuts.light };
+  thresholdL(image.lab.L, applied, image.labels);
+
   if (current.greyscale) {
     renderFlat(image.labels, ZONE_L, image.output);
   } else {
-    renderZones(image.labels, image.zoneColours, image.output);
+    renderZones(image.labels, zoneColoursOf(image), image.output);
   }
   drawPixels(studyCanvas, image.output, image.source.width, image.source.height);
-  drawHistogram(histogramCanvas, image.hist, [cuts.dark, cuts.light]);
+  drawHistogram(histogramCanvas, image.hist, [
+    { l: cuts.dark, active: current.showDarks },
+    { l: cuts.light, active: true },
+  ]);
 
   recordCheapPassTime(performance.now() - started);
 }
@@ -150,11 +174,21 @@ const controls = bindControls({
   onFile: (file) => void loadFile(file),
   onBoundaryMoved: (boundaries, moved) => {
     params = { ...params, boundaries: clampBoundaries(boundaries, moved) };
+    // Dragging the dark boundary while the darks are hidden would do nothing visible, so touching
+    // it switches the preview on.
+    if (moved === 'dark' && !params.showDarks) {
+      params = { ...params, showDarks: true };
+      controls.showDarksState(true);
+    }
     controls.showBoundaries(params.boundaries);
     scheduleRender();
   },
   onGreyscale: (on) => {
     params = { ...params, greyscale: on };
+    scheduleRender();
+  },
+  onShowDarks: (on) => {
+    params = { ...params, showDarks: on };
     scheduleRender();
   },
   onReset: () => {
@@ -172,19 +206,18 @@ async function loadFile(file: Blob): Promise<void> {
     state = await runExpensivePass(file);
   } catch (error) {
     state = null;
-    panels.hidden = true;
-    controls.setStudyControlsVisible(false);
-    emptyState.hidden = false;
-    emptyState.textContent = 'That image could not be opened. Try another.';
+    photoFrame.classList.add('frame--empty');
+    studyFrame.classList.add('frame--empty');
+    studyPlaceholder.textContent = 'That image could not be opened. Try another.';
     console.error(error);
     return;
   }
 
   const { rgba, width, height } = state.source;
   drawPixels(originalCanvas, rgba, width, height);
-  panels.hidden = false;
-  emptyState.hidden = true;
-  controls.setStudyControlsVisible(true);
+  photoFrame.classList.remove('frame--empty');
+  studyFrame.classList.remove('frame--empty');
+  photoCaption.textContent = 'Photo — tap to change';
 
   // A photo opens on the suggestion, so the painter sees a usable study without touching a slider.
   params = { ...params, boundaries: state.suggested };

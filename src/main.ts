@@ -107,6 +107,7 @@ const originalCanvas = requireCanvas('originalCanvas');
 const studyCanvas = requireCanvas('studyCanvas');
 const histogramCanvas = requireCanvas('histogram');
 const squintSoft = requireElement('squintSoft', SVGFEGaussianBlurElement);
+const squintHighlightSoft = requireElement('squintHighlightSoft', SVGFEGaussianBlurElement);
 const squintCrisp = requireElement('squintCrisp', SVGFEGaussianBlurElement);
 
 let state: ImageState | null = null;
@@ -199,9 +200,10 @@ function runCheapPass(image: ImageState, current: Params): void {
 /**
  * Squinting is simulated as a blur on the displayed photo, scaled to how large it is drawn.
  *
- * With highlights kept, an SVG filter blurs the photo twice and takes the lighter of each pair, so
- * bright accents stay roughly where they are while everything darker melts together — closer to
- * what squinting actually does than an even blur.
+ * Both variants are SVG filters rather than a CSS `blur()`, so that the result is cut back to the
+ * photo's own rectangle instead of spilling a halo onto the ground, and so the edges stay opaque
+ * rather than fading out where the blur samples past them. See the filter definitions in
+ * `index.html`.
  */
 function applySquint(current: Params): void {
   const blur = current.squint * SQUINT_MAX_BLUR_FRACTION * originalCanvas.clientWidth;
@@ -210,14 +212,15 @@ function applySquint(current: Params): void {
     return;
   }
   if (current.keepHighlights) {
-    squintSoft.setAttribute('stdDeviation', blur.toFixed(2));
+    squintHighlightSoft.setAttribute('stdDeviation', blur.toFixed(2));
     squintCrisp.setAttribute(
       'stdDeviation',
       (blur * SQUINT_HIGHLIGHT_BLUR_RATIO).toFixed(2),
     );
     originalCanvas.style.filter = 'url(#squintHighlights)';
   } else {
-    originalCanvas.style.filter = `blur(${blur.toFixed(1)}px)`;
+    squintSoft.setAttribute('stdDeviation', blur.toFixed(2));
+    originalCanvas.style.filter = 'url(#squint)';
   }
 }
 

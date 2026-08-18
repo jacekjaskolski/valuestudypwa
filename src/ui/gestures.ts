@@ -1,9 +1,12 @@
 /**
  * Pointer gestures on the image.
  *
- * A horizontal drag pulls the other image in behind the finger and hands over when released, so
- * comparing the photo against the study is a flick rather than a trip to a control. The switch is
- * still there for a deliberate change; this is for the quick back-and-forth that comparing is.
+ * A horizontal drag uncovers the other image, the way a before-and-after slider does: neither
+ * picture moves, the top one is simply clipped back by the drag. Sliding both instead reads as
+ * flipping between two pictures rather than looking through one at the other.
+ *
+ * The switch is still there for a deliberate change; this is for the quick back-and-forth that
+ * comparing actually is.
  *
  * Tap and drag are recognised here together rather than in two listeners, because they are the
  * same gesture until the finger lifts. Deciding separately is how a swipe ends up also counting as
@@ -47,31 +50,36 @@ export function bindStageGestures(handlers: StageGestureHandlers): void {
   let startX = 0;
   let startY = 0;
   let dragging = false;
-  /** The panel on screen, and the one being pulled in behind it. Null when not previewing. */
+  /** The panel being clipped back, and the one it is uncovering. Null when not previewing. */
   let leaving: HTMLElement | null = null;
   let arriving: HTMLElement | null = null;
   let settling = false;
 
   const clear = (): void => {
     stage.classList.remove('stage--dragging', 'stage--settling');
-    photo.style.transform = '';
-    study.style.transform = '';
+    for (const panel of [photo, study]) {
+      panel.classList.remove('panel--over', 'panel--under');
+      panel.style.clipPath = '';
+    }
     leaving = null;
     arriving = null;
     dragging = false;
     settling = false;
   };
 
-  const place = (dx: number): void => {
-    if (!leaving || !arriving) {
+  /**
+   * Clip the top panel back from whichever edge the finger is heading towards, uncovering the one
+   * underneath. Taking the edge from the current sign rather than the starting one means reversing
+   * mid-drag just works: at the moment the sign flips the clip is zero either way, so nothing
+   * visible jumps.
+   */
+  const clip = (dx: number): void => {
+    if (!leaving) {
       return;
     }
-    const width = stage.clientWidth;
-    leaving.style.transform = `translateX(${dx}px)`;
-    // The arriving panel sits one screen away on whichever side the finger came from. Deriving the
-    // side from the current sign rather than the starting one means reversing mid-drag just works:
-    // at the moment the sign flips it is a full screen away either way, so nothing visible jumps.
-    arriving.style.transform = `translateX(${dx + (dx < 0 ? width : -width)}px)`;
+    const amount = Math.min(Math.abs(dx), stage.clientWidth);
+    leaving.style.clipPath =
+      dx < 0 ? `inset(0 ${amount}px 0 0)` : `inset(0 0 0 ${amount}px)`;
   };
 
   stage.addEventListener('pointerdown', (event) => {
@@ -100,11 +108,13 @@ export function bindStageGestures(handlers: StageGestureHandlers): void {
       if (target !== null) {
         arriving = target === 'photo' ? photo : study;
         leaving = target === 'photo' ? study : photo;
+        leaving.classList.add('panel--over');
+        arriving.classList.add('panel--under');
         stage.classList.add('stage--dragging');
       }
     }
 
-    place(dx);
+    clip(dx);
   });
 
   const release = (event: PointerEvent): void => {
@@ -135,16 +145,11 @@ export function bindStageGestures(handlers: StageGestureHandlers): void {
       return;
     }
 
-    // Run the panels the rest of the way, or back where they came from, before handing over. The
-    // hand-over happens at the end so the arriving panel is already in place when the view
-    // changes, and nothing flashes.
-    const width = stage.clientWidth;
+    // Finish uncovering, or close back over, before handing over. The hand-over happens at the end
+    // so the arriving panel is already fully visible when the view changes, and nothing flashes.
     settling = true;
     stage.classList.add('stage--settling');
-    leaving.style.transform = `translateX(${committed ? (dx < 0 ? -width : width) : 0}px)`;
-    arriving.style.transform = committed
-      ? 'translateX(0px)'
-      : `translateX(${dx < 0 ? width : -width}px)`;
+    clip(committed ? (dx < 0 ? -stage.clientWidth : stage.clientWidth) : 0);
 
     window.setTimeout(() => {
       if (committed) {

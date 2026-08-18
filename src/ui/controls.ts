@@ -17,7 +17,6 @@ function isView(value: string | null): value is View {
 
 export interface ControlHandlers {
   onFile: (file: File) => void;
-  onGreyscale: (on: boolean) => void;
   onShowDarks: (on: boolean) => void;
   /** 0–1. */
   onSimplify: (strength: number) => void;
@@ -29,10 +28,10 @@ export interface ControlHandlers {
   onShowDepthMap: (on: boolean) => void;
   /** The haze preview on the photo. Both values 0–1. */
   onAerial: (start: number, strength: number) => void;
-  /** The lightness correction on the study. Both values 0–1. */
-  onDistant: (on: boolean, start: number, strength: number) => void;
-  /** Whether detail is kept in focus, and at what depth, 0–1. */
-  onFocus: (on: boolean, depth: number) => void;
+  /** The lightness correction on the study; zero strength is off. Both values 0–1. */
+  onDistant: (start: number, strength: number) => void;
+  /** Where detail is kept and how wide the band is; zero width is off. Both 0–1. */
+  onFocus: (depth: number, width: number) => void;
   onReset: () => void;
 }
 
@@ -73,7 +72,6 @@ function formatStrength(strength: number): string {
 export function bindControls(handlers: ControlHandlers): Controls {
   const app = requireElement('app', HTMLDivElement);
   const fileInput = requireElement('fileInput', HTMLInputElement);
-  const greyscaleInput = requireElement('greyscale', HTMLInputElement);
   const showDarksInput = requireElement('showDarks', HTMLInputElement);
   const simplifyInput = requireElement('simplify', HTMLInputElement);
   const simplifyValue = requireElement('simplifyValue', HTMLOutputElement);
@@ -93,13 +91,11 @@ export function bindControls(handlers: ControlHandlers): Controls {
   const aerialStartValue = requireElement('aerialStartValue', HTMLOutputElement);
   const aerialStrength = requireElement('aerialStrength', HTMLInputElement);
   const aerialStrengthValue = requireElement('aerialStrengthValue', HTMLOutputElement);
-  const preserveForegroundInput = requireElement('preserveForeground', HTMLInputElement);
-  const preserveForegroundField = requireElement('preserveForegroundField', HTMLLabelElement);
   const focusControl = requireElement('focusControl', HTMLDivElement);
   const focusDepth = requireElement('focusDepth', HTMLInputElement);
   const focusDepthValue = requireElement('focusDepthValue', HTMLOutputElement);
-  const distantInput = requireElement('distant', HTMLInputElement);
-  const distantField = requireElement('distantField', HTMLLabelElement);
+  const focusWidth = requireElement('focusWidth', HTMLInputElement);
+  const focusWidthValue = requireElement('focusWidthValue', HTMLOutputElement);
   const distantControls = requireElement('distantControls', HTMLDivElement);
   const distantStart = requireElement('distantStart', HTMLInputElement);
   const distantStartValue = requireElement('distantStartValue', HTMLOutputElement);
@@ -121,7 +117,6 @@ export function bindControls(handlers: ControlHandlers): Controls {
     }
   });
 
-  greyscaleInput.addEventListener('change', () => handlers.onGreyscale(greyscaleInput.checked));
   showDarksInput.addEventListener('change', () => handlers.onShowDarks(showDarksInput.checked));
   resetButton.addEventListener('click', () => handlers.onReset());
   estimateDepthButton.addEventListener('click', () => handlers.onEstimateDepth());
@@ -144,22 +139,20 @@ export function bindControls(handlers: ControlHandlers): Controls {
     const strength = Number(distantStrength.value) / 100;
     distantStartValue.textContent = formatStrength(start);
     distantStrengthValue.textContent = formatStrength(strength);
-    // The sliders only appear once the effect is on; hidden ones would just take up room.
-    distantControls.hidden = !distantInput.checked;
-    handlers.onDistant(distantInput.checked, start, strength);
+    handlers.onDistant(start, strength);
   };
-  const reportFocus = (): void => {
-    const depth = Number(focusDepth.value) / 100;
-    focusDepthValue.textContent = formatStrength(depth);
-    // The slider only appears once the effect is on; a hidden one would just take up room.
-    focusControl.hidden = !preserveForegroundInput.checked;
-    handlers.onFocus(preserveForegroundInput.checked, depth);
-  };
-  preserveForegroundInput.addEventListener('change', reportFocus);
-  focusDepth.addEventListener('input', reportFocus);
-  distantInput.addEventListener('change', reportDistant);
   distantStart.addEventListener('input', reportDistant);
   distantStrength.addEventListener('input', reportDistant);
+
+  const reportFocus = (): void => {
+    const depth = Number(focusDepth.value) / 100;
+    const width = Number(focusWidth.value) / 100;
+    focusDepthValue.textContent = formatStrength(depth);
+    focusWidthValue.textContent = formatStrength(width);
+    handlers.onFocus(depth, width);
+  };
+  focusDepth.addEventListener('input', reportFocus);
+  focusWidth.addEventListener('input', reportFocus);
 
   simplifyInput.addEventListener('input', () => {
     const strength = Number(simplifyInput.value) / 100;
@@ -235,6 +228,7 @@ export function bindControls(handlers: ControlHandlers): Controls {
   distantStartValue.textContent = formatStrength(Number(distantStart.value) / 100);
   distantStrengthValue.textContent = formatStrength(Number(distantStrength.value) / 100);
   focusDepthValue.textContent = formatStrength(Number(focusDepth.value) / 100);
+  focusWidthValue.textContent = formatStrength(Number(focusWidth.value) / 100);
 
   return {
     showReadouts: (dark, light) => {
@@ -287,14 +281,18 @@ export function bindControls(handlers: ControlHandlers): Controls {
     setDepthAvailable: (available) => {
       showDepthMapField.hidden = !available;
       aerialControls.hidden = !available;
-      distantField.hidden = !available;
-      preserveForegroundField.hidden = !available;
+      distantControls.hidden = !available;
+      focusControl.hidden = !available;
       if (!available) {
+        // A new photo has no depth yet, so everything driven by it goes back to off rather than
+        // silently carrying the last photo's settings into this one.
         showDepthMapInput.checked = false;
-        distantInput.checked = false;
-        preserveForegroundInput.checked = false;
-        focusControl.hidden = true;
-        distantControls.hidden = true;
+        aerialStrength.value = '0';
+        distantStrength.value = '0';
+        focusWidth.value = '0';
+        reportAerial();
+        reportDistant();
+        reportFocus();
       }
     },
   };

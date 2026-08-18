@@ -7,12 +7,11 @@
 
 import {
   AERIAL_DEFAULT_START,
-  AERIAL_DEFAULT_STRENGTH,
   DEFAULT_PERCENTILE_DARK,
   DEFAULT_PERCENTILE_LIGHT,
   DEPTH_NEAR_IS_HIGH,
   FOCUS_DEFAULT_DEPTH,
-  FOCUS_FALLOFF,
+  FOCUS_MAX_FALLOFF,
   HISTOGRAM_BINS,
   SQUINT_HIGHLIGHT_BLUR_RATIO,
   SQUINT_MAX_BLUR_FRACTION,
@@ -108,6 +107,11 @@ interface Params {
    * (SPEC.md §6.4); `percentilesToCuts` converts it once, when the photo loads.
    */
   cuts: Boundaries;
+  /**
+   * Always true for now: the black / grey / white study is the one being used, and the tinted
+   * render has no control. `renderZones` and its precompute stay in the pipeline, tested, for when
+   * SPEC.md §6.6's colour reference is wanted again.
+   */
   greyscale: boolean;
   /**
    * Whether the dark zone is painted. Off, the darks fall back into the mid zone; the boundary
@@ -116,9 +120,9 @@ interface Params {
   showDarks: boolean;
   /** Shape simplification strength, 0–1. */
   simplify: number;
-  /** Keep detail in a band of the scene, and the depth that band is centred on. */
-  preserveForeground: boolean;
+  /** The depth kept sharp, and how wide that band is. A width of zero keeps nothing. */
   focusDepth: number;
+  focusWidth: number;
   /** Squint blur on the reference photo, 0–1. A display effect, not a pipeline stage. */
   squint: number;
   /** Whether squinting keeps bright accents where they are instead of smearing them. */
@@ -127,8 +131,8 @@ interface Params {
   showDepthMap: boolean;
   /** The haze preview on the photo. */
   aerial: AerialSettings;
-  /** The lightness correction on the study, and whether it is on. */
-  distant: AerialSettings & { on: boolean };
+  /** The lightness correction on the study. Zero strength is off. */
+  distant: AerialSettings;
   view: View;
 }
 
@@ -147,13 +151,13 @@ let params: Params = {
   showDarks: false,
   // These three mirror the markup's own defaults; `index.html` is the other half of each.
   simplify: 0.1,
-  preserveForeground: false,
   focusDepth: FOCUS_DEFAULT_DEPTH,
+  focusWidth: 0,
   squint: 0,
   keepHighlights: true,
   showDepthMap: false,
-  aerial: { start: AERIAL_DEFAULT_START, strength: AERIAL_DEFAULT_STRENGTH },
-  distant: { on: false, start: AERIAL_DEFAULT_START, strength: AERIAL_DEFAULT_STRENGTH },
+  aerial: { start: AERIAL_DEFAULT_START, strength: 0 },
+  distant: { start: AERIAL_DEFAULT_START, strength: 0 },
   view: 'photo',
 };
 
@@ -209,7 +213,7 @@ function runCheapPass(image: ImageState, current: Params): void {
   // The histogram is rebuilt from the corrected values so the chart, and the boundaries read
   // against it, follow the correction rather than describing an image that is no longer shown
   // (SPEC.md §7).
-  const corrected = current.distant.on && image.depth !== null;
+  const corrected = current.distant.strength > 0 && image.depth !== null;
   let L = image.lab.L;
   let hist = image.hist;
   if (corrected) {
@@ -244,13 +248,13 @@ function runCheapPass(image: ImageState, current: Params): void {
     // Both maps already exist, so keeping the foreground sharp is a choice between them rather
     // than a second simplification pass. Written back into the simplified buffer, which is safe
     // because the unsimplified one it reads from is a different array.
-    if (current.preserveForeground && image.depth !== null) {
+    if (current.focusWidth > 0 && image.depth !== null) {
       restoreDetail(
         image.simplified,
         image.labels,
         image.depth,
         current.focusDepth,
-        FOCUS_FALLOFF,
+        current.focusWidth * FOCUS_MAX_FALLOFF,
         image.simplified,
       );
     }
@@ -301,7 +305,6 @@ function drawPhoto(image: ImageState, current: Params): void {
   }
 
   image.blurScratch ??= createBlurScratch(image.source.rgba.length);
-  const started = performance.now();
   const blurred = squintBlur(
     rgba,
     width,
@@ -326,12 +329,6 @@ function drawPhoto(image: ImageState, current: Params): void {
     );
   }
 
-  if (import.meta.env.DEV) {
-    console.debug(
-      `squint: ${(performance.now() - started).toFixed(1)}ms at ` +
-        `${blurred.width}x${blurred.height}`,
-    );
-  }
 }
 
 /**
@@ -421,10 +418,6 @@ function applyView(view: View): void {
 
 const controls = bindControls({
   onFile: (file) => void loadFile(file),
-  onGreyscale: (on) => {
-    params = { ...params, greyscale: on };
-    scheduleRender();
-  },
   onShowDarks: (on) => {
     params = { ...params, showDarks: on };
     valueBar.setDarkActive(on);
@@ -434,8 +427,8 @@ const controls = bindControls({
     params = { ...params, simplify: strength };
     scheduleRender();
   },
-  onFocus: (on, depth) => {
-    params = { ...params, preserveForeground: on, focusDepth: depth };
+  onFocus: (depth, width) => {
+    params = { ...params, focusDepth: depth, focusWidth: width };
     scheduleRender();
   },
   onSquint: (strength) => {
@@ -456,8 +449,8 @@ const controls = bindControls({
     params = { ...params, aerial: { start, strength } };
     schedulePhoto();
   },
-  onDistant: (on, start, strength) => {
-    params = { ...params, distant: { on, start, strength } };
+  onDistant: (start, strength) => {
+    params = { ...params, distant: { start, strength } };
     scheduleRender();
   },
   onReset: () => {
@@ -517,10 +510,8 @@ async function estimateDepthForCurrentImage(): Promise<void> {
     image.depth = full;
 
     controls.setDepthAvailable(true);
-    controls.showDepthStatus(
-      `${result.device}, ${Math.round(result.ms)}ms, model output ` +
-        `${result.width}×${result.height}. Distance should read white.`,
-    );
+    // The sliders appearing is the confirmation; the timings were a developer's note.
+    controls.showDepthStatus('');
     drawPhoto(image, params);
   } catch (error) {
     // Put the actual reason on screen. A generic message is useless on a phone or tablet, where
@@ -557,12 +548,8 @@ async function loadFile(file: Blob): Promise<void> {
   applyView('photo');
   // A new photo invalidates the old depth map, and everything that depended on it.
   controls.setDepthAvailable(false);
-  params = {
-    ...params,
-    showDepthMap: false,
-    preserveForeground: false,
-    distant: { ...params.distant, on: false },
-  };
+  // Anything the old depth map was driving is reset by `setDepthAvailable(false)` above.
+  params = { ...params, showDepthMap: false };
   controls.showDepthStatus('Not estimated for this photo yet.');
 
   // A photo opens on the suggestion, so the painter sees a usable study without touching a slider.

@@ -167,19 +167,30 @@ body {
 }
 
 /*
- * Mid-drag both panels are on screen, stacked and moved by transform: the one being left behind
- * follows the finger, the one arriving comes in a screen-width behind it. The selector has to
- * outrank the rule above, which is why it names the view attribute it is overriding.
+ * Mid-drag both panels are on screen, stacked. Neither moves: the one on top is *clipped* back by
+ * the drag, uncovering the one underneath, the way a before-and-after slider works. Sliding them
+ * both instead reads as flipping between two pictures rather than looking through one at another.
+ *
+ * The selector has to outrank the view rule above, which is why it names the attribute.
  */
 .app[data-view] .stage--dragging .panel {
   position: absolute;
   inset: 0;
   display: flex;
-  will-change: transform;
+  will-change: clip-path;
 }
 
-.stage--settling .panel {
-  transition: transform 160ms ease-out;
+/* The arriving panel lies underneath, untouched; only the leaving one is clipped. */
+.stage--dragging .panel--under {
+  z-index: 0;
+}
+
+.stage--dragging .panel--over {
+  z-index: 1;
+}
+
+.stage--settling .panel--over {
+  transition: clip-path 160ms ease-out;
 }
 
 .panel {
@@ -263,8 +274,33 @@ body {
  * the stage upward, and an image that jumps when a panel opens makes it impossible to judge a
  * change against what was there before.
  */
+/*
+ * One side per image. Side by side, each sits under its own column, so a control is under the
+ * thing it acts on rather than in a shared strip that belongs to neither.
+ */
 .dock {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 var(--gap);
+}
+
+.app[data-view="both"] .dock {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.dock__side {
   position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  /* The study side is taller by a value bar; sitting both at the foot lines the toolbars up. */
+  justify-content: flex-end;
+}
+
+/* Only the image on screen has its tools on screen. */
+.app[data-view="photo"] .dock__side--study,
+.app[data-view="study"] .dock__side--photo {
+  display: none;
 }
 
 .sheets {
@@ -313,6 +349,8 @@ body {
  * app bar's corner, which is exactly where a main control should not be.
  */
 .viewswitch {
+  /* Spans both sides: it selects between them, so it belongs to neither. */
+  grid-column: 1 / -1;
   display: flex;
   gap: 2px;
   /* Full width on a phone, but a pill spanning a desktop window reads as a banner, not a switch. */
@@ -496,23 +534,19 @@ body {
 /* --- controls ----------------------------------------------------------- */
 
 /*
- * A pair of controls that only makes sense once something else exists — the aerial sliders need a
+ * A pair of controls that only makes sense once something else exists — the haze sliders need a
  * depth map before they mean anything.
  *
- * Side by side and half height: a start/strength pair reads as one control anyway.
+ * Stacked, not side by side. Halving their width to save a row made both of them fiddly on the
+ * screen where room is actually scarce, and the sheet has the height to spare now.
  */
 .group {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 0 var(--gap);
+  display: flex;
+  flex-direction: column;
 }
 
 .group[hidden] {
   display: none;
-}
-
-.group .slider__input {
-  height: 1.5rem;
 }
 
 .check[hidden] {

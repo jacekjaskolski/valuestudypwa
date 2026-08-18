@@ -207,9 +207,11 @@ export const HAZE_COLOUR: readonly [number, number, number] = [196, 214, 234];
  */
 export const HAZE_DESATURATION = 0.7;
 
-/** Where the effect starts and how strong it is, before the painter touches either slider. */
+/**
+ * Where a depth-driven effect starts by default. Every strength starts at zero instead: an effect
+ * that switched itself on the moment a depth map appeared would be changing the study unasked.
+ */
 export const AERIAL_DEFAULT_START = 0.35;
-export const AERIAL_DEFAULT_STRENGTH = 0.5;
 
 /**
  * Where the sharp band sits by default, on the 0–1 depth scale. Near, since a subject usually is.
@@ -217,14 +219,16 @@ export const AERIAL_DEFAULT_STRENGTH = 0.5;
 export const FOCUS_DEFAULT_DEPTH = 0.25;
 
 /**
- * How quickly detail is given up either side of the focus depth — the standard deviation of the
- * falloff, in depth units.
+ * The widest the sharp band can be set, as the standard deviation of its falloff in depth units.
  *
- * Higher: a deep band, most of the scene keeps its detail and the effect stops being selective.
- * Lower: a narrow slice in focus and everything else simplified, which on a shallow depth map can
- * leave nothing sharp at all.
+ * The slider runs from nothing to this, and nothing is the off position — a band of no width
+ * keeps no pixel sharp — which is why the feature needs no switch of its own.
+ *
+ * Higher: the far end of the slider keeps most of the scene detailed and stops being selective.
+ * Lower: even at full width the band is a narrow slice, which on a shallow depth map can leave
+ * almost nothing sharp.
  */
-export const FOCUS_FALLOFF = 0.18;
+export const FOCUS_MAX_FALLOFF = 0.4;
 
 /**
  * How much of the falloff counts as in focus, 0–1.

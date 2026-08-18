@@ -9,9 +9,13 @@
   </head>
   <body>
     <!--
-      The image is the hero and the controls are summoned. Three grid rows: app bar, stage, and
-      the bottom cluster. The sheet is not a row at all — it floats above the cluster, so opening
-      a tool never moves or resizes the image.
+      Three grid rows: app bar, stage, dock. The dock has one side per image, each holding that
+      image's tools and their controls, so a control is only on screen when the thing it acts on
+      is. Side by side, the two sides sit under their own columns; alone, one side takes the width
+      and the other is not rendered at all.
+
+      A sheet floats above its side rather than occupying a row, so opening a tool never moves or
+      resizes the image.
     -->
     <div class="app" id="app" data-view="photo">
       <header class="appbar">
@@ -53,292 +57,306 @@
       </main>
 
       <div class="dock">
-        <div class="sheets" id="sheets">
-          <section
-            class="sheet"
-            id="sheet-values"
-            aria-labelledby="sheet-values-title"
-            tabindex="-1"
-            hidden
-          >
-            <h2 class="sheet__title" id="sheet-values-title">Values</h2>
-            <div class="row">
+        <div class="dock__side dock__side--photo">
+          <div class="sheets">
+            <section
+              class="sheet"
+              id="sheet-squint"
+              aria-labelledby="sheet-squint-title"
+              tabindex="-1"
+              hidden
+            >
+              <h2 class="sheet__title" id="sheet-squint-title">Squint</h2>
+              <div class="slider">
+                <label class="slider__label" for="squint">
+                  Squint
+                  <output class="slider__value" id="squintValue"></output>
+                </label>
+                <input
+                  type="range"
+                  id="squint"
+                  class="slider__input"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value="0"
+                />
+              </div>
               <label class="check">
-                <input type="checkbox" id="showDarks" class="check__input" />
-                <span>Show darks</span>
+                <input type="checkbox" id="keepHighlights" class="check__input" checked />
+                <span>Preserve highlights</span>
               </label>
-              <label class="check">
-                <input type="checkbox" id="greyscale" class="check__input" checked />
-                <span>Flat grey</span>
-              </label>
-              <button type="button" id="reset" class="button button--end">Reset</button>
-            </div>
+            </section>
 
-            <label class="check" id="distantField" hidden>
-              <input type="checkbox" id="distant" class="check__input" />
-              <span>Decrease distant values</span>
-            </label>
-            <div class="group" id="distantControls" hidden>
-              <div class="slider">
-                <label class="slider__label" for="distantStart">
-                  Distance from
-                  <output class="slider__value" id="distantStartValue"></output>
+            <section
+              class="sheet"
+              id="sheet-depth"
+              aria-labelledby="sheet-depth-title"
+              tabindex="-1"
+              hidden
+            >
+              <h2 class="sheet__title" id="sheet-depth-title">Depth</h2>
+              <div class="row">
+                <label class="check" id="showDepthMapField" hidden>
+                  <input type="checkbox" id="showDepthMap" class="check__input" />
+                  <span>Show depth map</span>
                 </label>
-                <input
-                  type="range"
-                  id="distantStart"
-                  class="slider__input"
-                  min="0"
-                  max="100"
-                  step="1"
-                  value="35"
-                />
+                <button type="button" id="estimateDepth" class="button button--end">
+                  Estimate depth
+                </button>
               </div>
-              <div class="slider">
-                <label class="slider__label" for="distantStrength">
-                  Lighten distance
-                  <output class="slider__value" id="distantStrengthValue"></output>
-                </label>
-                <input
-                  type="range"
-                  id="distantStrength"
-                  class="slider__input"
-                  min="0"
-                  max="100"
-                  step="1"
-                  value="50"
-                />
+              <progress class="progress" id="depthProgress" max="1" hidden></progress>
+              <p class="status" id="depthStatus">
+                Estimating depth downloads a model, around 27&nbsp;MB, once per browser.
+              </p>
+
+              <!-- Zero strength is the off position, so there is no switch to find first. -->
+              <div class="group" id="aerialControls" hidden>
+                <div class="slider">
+                  <label class="slider__label" for="aerialStrength">
+                    Haze strength
+                    <output class="slider__value" id="aerialStrengthValue"></output>
+                  </label>
+                  <input
+                    type="range"
+                    id="aerialStrength"
+                    class="slider__input"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value="0"
+                  />
+                </div>
+                <div class="slider">
+                  <label class="slider__label" for="aerialStart">
+                    Haze from
+                    <output class="slider__value" id="aerialStartValue"></output>
+                  </label>
+                  <input
+                    type="range"
+                    id="aerialStart"
+                    class="slider__input"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value="35"
+                  />
+                </div>
               </div>
-            </div>
-          </section>
+            </section>
+          </div>
 
-          <section
-            class="sheet"
-            id="sheet-shapes"
-            aria-labelledby="sheet-shapes-title"
-            tabindex="-1"
-            hidden
-          >
-            <h2 class="sheet__title" id="sheet-shapes-title">Shapes</h2>
-            <div class="slider">
-              <label class="slider__label" for="simplify">
-                Simplify shapes
-                <output class="slider__value" id="simplifyValue"></output>
-              </label>
-              <input
-                type="range"
-                id="simplify"
-                class="slider__input"
-                min="0"
-                max="100"
-                step="1"
-                value="10"
-              />
-            </div>
+          <nav class="toolbar" aria-label="Photo tools">
+            <button
+              type="button"
+              class="tool"
+              data-sheet="sheet-squint"
+              data-scope="photo"
+              aria-controls="sheet-squint"
+              aria-expanded="false"
+            >
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6-10-6-10-6Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              <span class="tool__label">Squint</span>
+            </button>
 
-            <label class="check" id="preserveForegroundField" hidden>
-              <input type="checkbox" id="preserveForeground" class="check__input" />
-              <span>Preserve details in focus</span>
-            </label>
-            <div class="slider" id="focusControl" hidden>
-              <label class="slider__label" for="focusDepth">
-                Focus depth
-                <output class="slider__value" id="focusDepthValue"></output>
-              </label>
-              <input
-                type="range"
-                id="focusDepth"
-                class="slider__input"
-                min="0"
-                max="100"
-                step="1"
-                value="25"
-              />
-            </div>
-          </section>
-
-          <section
-            class="sheet"
-            id="sheet-squint"
-            aria-labelledby="sheet-squint-title"
-            tabindex="-1"
-            hidden
-          >
-            <h2 class="sheet__title" id="sheet-squint-title">Squint</h2>
-            <div class="slider">
-              <label class="slider__label" for="squint">
-                Squint
-                <output class="slider__value" id="squintValue"></output>
-              </label>
-              <input
-                type="range"
-                id="squint"
-                class="slider__input"
-                min="0"
-                max="100"
-                step="1"
-                value="0"
-              />
-            </div>
-            <label class="check">
-              <input type="checkbox" id="keepHighlights" class="check__input" checked />
-              <span>Preserve highlights</span>
-            </label>
-          </section>
-
-          <section
-            class="sheet"
-            id="sheet-depth"
-            aria-labelledby="sheet-depth-title"
-            tabindex="-1"
-            hidden
-          >
-            <h2 class="sheet__title" id="sheet-depth-title">Depth</h2>
-            <div class="row">
-              <label class="check" id="showDepthMapField" hidden>
-                <input type="checkbox" id="showDepthMap" class="check__input" />
-                <span>Show depth map</span>
-              </label>
-              <button type="button" id="estimateDepth" class="button button--end">
-                Estimate depth
-              </button>
-            </div>
-            <progress class="progress" id="depthProgress" max="1" hidden></progress>
-            <p class="status" id="depthStatus">
-              Depth estimation downloads a model, around 27&nbsp;MB, once per browser.
-            </p>
-
-            <div class="group" id="aerialControls" hidden>
-              <div class="slider">
-                <label class="slider__label" for="aerialStart">
-                  Haze from
-                  <output class="slider__value" id="aerialStartValue"></output>
-                </label>
-                <input
-                  type="range"
-                  id="aerialStart"
-                  class="slider__input"
-                  min="0"
-                  max="100"
-                  step="1"
-                  value="35"
-                />
-              </div>
-              <div class="slider">
-                <label class="slider__label" for="aerialStrength">
-                  Haze strength
-                  <output class="slider__value" id="aerialStrengthValue"></output>
-                </label>
-                <input
-                  type="range"
-                  id="aerialStrength"
-                  class="slider__input"
-                  min="0"
-                  max="100"
-                  step="1"
-                  value="50"
-                />
-              </div>
-            </div>
-          </section>
+            <button
+              type="button"
+              class="tool"
+              data-sheet="sheet-depth"
+              data-scope="photo"
+              aria-controls="sheet-depth"
+              aria-expanded="false"
+            >
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3 3 8l9 5 9-5-9-5Z" />
+                <path d="M3 13l9 5 9-5" />
+              </svg>
+              <span class="tool__label">Depth</span>
+            </button>
+          </nav>
         </div>
 
+        <div class="dock__side dock__side--study">
+          <div class="sheets">
+            <section
+              class="sheet"
+              id="sheet-values"
+              aria-labelledby="sheet-values-title"
+              tabindex="-1"
+              hidden
+            >
+              <h2 class="sheet__title" id="sheet-values-title">Values</h2>
+              <div class="row">
+                <label class="check">
+                  <input type="checkbox" id="showDarks" class="check__input" />
+                  <span>Show darks</span>
+                </label>
+                <button type="button" id="reset" class="button button--end">Reset</button>
+              </div>
 
-        <!--
-          The two boundaries are handles on one axis, and the histogram is the background they are
-          dragged across. The bands behind the bars are the three zones, so the control reads as a
-          miniature of the study it produces. The readouts sit on top of it rather than above it,
-          which costs no height at all.
-        -->
-        <div class="valuebar" id="valueBar">
-          <canvas id="histogram" class="valuebar__chart" aria-hidden="true"></canvas>
-          <output class="valuebar__readout valuebar__readout--dark" id="cutDarkValue"></output>
-          <output class="valuebar__readout valuebar__readout--light" id="cutLightValue"></output>
-          <div
-            class="valuebar__handle valuebar__handle--dark"
-            id="darkHandle"
-            role="slider"
-            tabindex="0"
-            aria-label="Darks boundary"
-            aria-valuemin="0"
-            aria-valuemax="100"
-          ></div>
-          <div
-            class="valuebar__handle"
-            id="lightHandle"
-            role="slider"
-            tabindex="0"
-            aria-label="Lights boundary"
-            aria-valuemin="0"
-            aria-valuemax="100"
-          ></div>
+              <!-- Zero lightening is the off position, so no checkbox gates these. -->
+              <div class="group" id="distantControls" hidden>
+                <div class="slider">
+                  <label class="slider__label" for="distantStrength">
+                    Lighten distant darks
+                    <output class="slider__value" id="distantStrengthValue"></output>
+                  </label>
+                  <input
+                    type="range"
+                    id="distantStrength"
+                    class="slider__input"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value="0"
+                  />
+                </div>
+                <div class="slider">
+                  <label class="slider__label" for="distantStart">
+                    Distance from
+                    <output class="slider__value" id="distantStartValue"></output>
+                  </label>
+                  <input
+                    type="range"
+                    id="distantStart"
+                    class="slider__input"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value="35"
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section
+              class="sheet"
+              id="sheet-shapes"
+              aria-labelledby="sheet-shapes-title"
+              tabindex="-1"
+              hidden
+            >
+              <h2 class="sheet__title" id="sheet-shapes-title">Shapes</h2>
+              <div class="slider">
+                <label class="slider__label" for="simplify">
+                  Simplify shapes
+                  <output class="slider__value" id="simplifyValue"></output>
+                </label>
+                <input
+                  type="range"
+                  id="simplify"
+                  class="slider__input"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value="10"
+                />
+              </div>
+
+              <!-- A band of no width keeps nothing sharp, which is the off position. -->
+              <div class="group" id="focusControl" hidden>
+                <div class="slider">
+                  <label class="slider__label" for="focusWidth">
+                    Keep sharp
+                    <output class="slider__value" id="focusWidthValue"></output>
+                  </label>
+                  <input
+                    type="range"
+                    id="focusWidth"
+                    class="slider__input"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value="0"
+                  />
+                </div>
+                <div class="slider">
+                  <label class="slider__label" for="focusDepth">
+                    Focus depth
+                    <output class="slider__value" id="focusDepthValue"></output>
+                  </label>
+                  <input
+                    type="range"
+                    id="focusDepth"
+                    class="slider__input"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value="25"
+                  />
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <!--
+            The two boundaries are handles on one axis, and the histogram is the background they
+            are dragged across. The bands behind the bars are the three zones, so the control reads
+            as a miniature of the study it produces. The readouts sit on top of it rather than
+            above it, which costs no height at all.
+          -->
+          <div class="valuebar" id="valueBar">
+            <canvas id="histogram" class="valuebar__chart" aria-hidden="true"></canvas>
+            <output class="valuebar__readout valuebar__readout--dark" id="cutDarkValue"></output>
+            <output class="valuebar__readout valuebar__readout--light" id="cutLightValue"></output>
+            <div
+              class="valuebar__handle valuebar__handle--dark"
+              id="darkHandle"
+              role="slider"
+              tabindex="0"
+              aria-label="Darks boundary"
+              aria-valuemin="0"
+              aria-valuemax="100"
+            ></div>
+            <div
+              class="valuebar__handle"
+              id="lightHandle"
+              role="slider"
+              tabindex="0"
+              aria-label="Lights boundary"
+              aria-valuemin="0"
+              aria-valuemax="100"
+            ></div>
+          </div>
+
+          <nav class="toolbar" aria-label="Study tools">
+            <button
+              type="button"
+              class="tool"
+              data-sheet="sheet-values"
+              data-scope="study"
+              aria-controls="sheet-values"
+              aria-expanded="false"
+            >
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 20V11M12 20V4M19 20v-6" />
+              </svg>
+              <span class="tool__label">Values</span>
+            </button>
+
+            <button
+              type="button"
+              class="tool"
+              data-sheet="sheet-shapes"
+              data-scope="study"
+              aria-controls="sheet-shapes"
+              aria-expanded="false"
+            >
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="9" cy="12" r="6" />
+                <circle cx="15" cy="12" r="6" />
+              </svg>
+              <span class="tool__label">Shapes</span>
+            </button>
+          </nav>
         </div>
-
-        <nav class="toolbar" aria-label="Tools">
-          <button
-            type="button"
-            class="tool"
-            data-sheet="sheet-values"
-          data-scope="study"
-            aria-controls="sheet-values"
-            aria-expanded="false"
-          >
-            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M5 20V11M12 20V4M19 20v-6" />
-            </svg>
-            <span class="tool__label">Values</span>
-          </button>
-
-          <button
-            type="button"
-            class="tool"
-            data-sheet="sheet-shapes"
-          data-scope="study"
-            aria-controls="sheet-shapes"
-            aria-expanded="false"
-          >
-            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="9" cy="12" r="6" />
-              <circle cx="15" cy="12" r="6" />
-            </svg>
-            <span class="tool__label">Shapes</span>
-          </button>
-
-          <button
-            type="button"
-            class="tool"
-            data-sheet="sheet-squint"
-          data-scope="photo"
-            aria-controls="sheet-squint"
-            aria-expanded="false"
-          >
-            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6-10-6-10-6Z" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
-            <span class="tool__label">Squint</span>
-          </button>
-
-          <button
-            type="button"
-            class="tool"
-            data-sheet="sheet-depth"
-          data-scope="photo"
-            aria-controls="sheet-depth"
-            aria-expanded="false"
-          >
-            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 3 3 8l9 5 9-5-9-5Z" />
-              <path d="M3 13l9 5 9-5" />
-            </svg>
-            <span class="tool__label">Depth</span>
-          </button>
-        </nav>
 
         <!--
           The main control of the whole app, so it sits at the very bottom where the thumb already
-          is, always full width, and never behind anything. Everything above it belongs to
-          whichever image it has selected.
+          is and never behind anything. Everything above it belongs to whichever image it selected.
         -->
         <div class="viewswitch" role="group" aria-label="View">
           <button type="button" class="segmented__button" data-view="photo">Photo</button>

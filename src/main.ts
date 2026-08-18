@@ -220,7 +220,7 @@ function applySquint(current: Params): void {
     originalCanvas.style.filter = 'url(#squintHighlights)';
   } else {
     squintSoft.setAttribute('stdDeviation', blur.toFixed(2));
-    originalCanvas.style.filter = 'url(#squint)';
+    originalCanvas.style.filter = 'url(#squintPlain)';
   }
 }
 

@@ -210,3 +210,15 @@ export const HAZE_DESATURATION = 0.7;
 /** Where the effect starts and how strong it is, before the painter touches either slider. */
 export const AERIAL_DEFAULT_START = 0.35;
 export const AERIAL_DEFAULT_STRENGTH = 0.5;
+
+/**
+ * How near a pixel must be to keep its detail when "preserve foreground details" is on.
+ *
+ * On the 0–1 depth scale, so anything nearer than this escapes simplification entirely.
+ *
+ * Deliberately a constant while the idea is being judged: the question is whether protecting the
+ * foreground helps at all, not where exactly the line should sit. If it does help, this is the
+ * first thing to promote to a slider — the right depth plainly differs between a portrait and a
+ * landscape.
+ */
+export const FOREGROUND_DEPTH_LIMIT = 0.4;

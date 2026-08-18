@@ -31,6 +31,7 @@ export interface ControlHandlers {
   onAerial: (start: number, strength: number) => void;
   /** The lightness correction on the study. Both values 0–1. */
   onDistant: (on: boolean, start: number, strength: number) => void;
+  onPreserveForeground: (on: boolean) => void;
   onReset: () => void;
 }
 
@@ -86,6 +87,8 @@ export function bindControls(handlers: ControlHandlers): Controls {
   const aerialStartValue = requireElement('aerialStartValue', HTMLOutputElement);
   const aerialStrength = requireElement('aerialStrength', HTMLInputElement);
   const aerialStrengthValue = requireElement('aerialStrengthValue', HTMLOutputElement);
+  const preserveForegroundInput = requireElement('preserveForeground', HTMLInputElement);
+  const preserveForegroundField = requireElement('preserveForegroundField', HTMLLabelElement);
   const distantInput = requireElement('distant', HTMLInputElement);
   const distantField = requireElement('distantField', HTMLLabelElement);
   const distantControls = requireElement('distantControls', HTMLDivElement);
@@ -136,6 +139,9 @@ export function bindControls(handlers: ControlHandlers): Controls {
     distantControls.hidden = !distantInput.checked;
     handlers.onDistant(distantInput.checked, start, strength);
   };
+  preserveForegroundInput.addEventListener('change', () =>
+    handlers.onPreserveForeground(preserveForegroundInput.checked),
+  );
   distantInput.addEventListener('change', reportDistant);
   distantStart.addEventListener('input', reportDistant);
   distantStrength.addEventListener('input', reportDistant);
@@ -214,9 +220,11 @@ export function bindControls(handlers: ControlHandlers): Controls {
       showDepthMapField.hidden = !available;
       aerialControls.hidden = !available;
       distantField.hidden = !available;
+      preserveForegroundField.hidden = !available;
       if (!available) {
         showDepthMapInput.checked = false;
         distantInput.checked = false;
+        preserveForegroundInput.checked = false;
         distantControls.hidden = true;
       }
     },

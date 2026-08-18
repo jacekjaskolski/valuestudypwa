@@ -306,6 +306,35 @@ export function absorbSmallRegions(
   return out;
 }
 
+/**
+ * Put the detail back wherever the scene is near.
+ *
+ * Input: `simplified` and `detailed`, two label maps of the same image — the second being what
+ * the first looked like before simplification; `depth` 0–1 where 1 is farthest; `nearerThan`, the
+ * depth inside which detail is kept. Output: `out`, written in place, and safe to alias either
+ * input since every pixel is decided independently.
+ *
+ * A painter simplifies the background and keeps the subject sharp, and no amount of tuning a
+ * single simplification strength does that, because it applies the same treatment everywhere. This
+ * needs no second pass: both maps already exist, so choosing between them per pixel is one walk
+ * over the image.
+ *
+ * The seam falls exactly on the depth boundary, which is roughly the subject's outline — which is
+ * where a painter would put the change in treatment anyway.
+ */
+export function restoreDetail(
+  simplified: ZoneMap,
+  detailed: ZoneMap,
+  depth: Float32Array,
+  nearerThan: number,
+  out: ZoneMap,
+): ZoneMap {
+  for (let i = 0; i < out.length; i++) {
+    out[i] = depth[i]! < nearerThan ? detailed[i]! : simplified[i]!;
+  }
+  return out;
+}
+
 /** Both stages, in order. */
 export function simplifyLabels(
   labels: ZoneMap,

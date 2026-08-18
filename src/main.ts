@@ -11,6 +11,7 @@ import {
   DEFAULT_PERCENTILE_DARK,
   DEFAULT_PERCENTILE_LIGHT,
   DEPTH_NEAR_IS_HIGH,
+  FOREGROUND_DEPTH_LIMIT,
   HISTOGRAM_BINS,
   SQUINT_HIGHLIGHT_BLUR_RATIO,
   SQUINT_MAX_BLUR_FRACTION,
@@ -35,6 +36,7 @@ import {
 } from './pipeline/render';
 import {
   createSimplifyScratch,
+  restoreDetail,
   simplifyLabels,
   simplifySettings,
   type SimplifyScratch,
@@ -111,6 +113,8 @@ interface Params {
   showDarks: boolean;
   /** Shape simplification strength, 0–1. */
   simplify: number;
+  /** Keep the near part of the scene out of the simplification entirely. */
+  preserveForeground: boolean;
   /** Squint blur on the reference photo, 0–1. A display effect, not a pipeline stage. */
   squint: number;
   /** Whether squinting keeps bright accents where they are instead of smearing them. */
@@ -139,6 +143,7 @@ let params: Params = {
   showDarks: false,
   // These three mirror the markup's own defaults; `index.html` is the other half of each.
   simplify: 0.1,
+  preserveForeground: false,
   squint: 0,
   keepHighlights: true,
   showDepthMap: false,
@@ -230,6 +235,19 @@ function runCheapPass(image: ImageState, current: Params): void {
     const settings = simplifySettings(current.simplify, width, height);
     simplifyLabels(labels, width, height, settings, image.scratch, image.simplified);
     labels = image.simplified;
+
+    // Both maps already exist, so keeping the foreground sharp is a choice between them rather
+    // than a second simplification pass. Written back into the simplified buffer, which is safe
+    // because the unsimplified one it reads from is a different array.
+    if (current.preserveForeground && image.depth !== null) {
+      restoreDetail(
+        image.simplified,
+        image.labels,
+        image.depth,
+        FOREGROUND_DEPTH_LIMIT,
+        image.simplified,
+      );
+    }
   }
 
   if (current.greyscale) {
@@ -397,6 +415,10 @@ const controls = bindControls({
     params = { ...params, simplify: strength };
     scheduleRender();
   },
+  onPreserveForeground: (on) => {
+    params = { ...params, preserveForeground: on };
+    scheduleRender();
+  },
   onSquint: (strength) => {
     params = { ...params, squint: strength };
     schedulePhoto();
@@ -517,7 +539,12 @@ async function loadFile(file: Blob): Promise<void> {
   controls.showLoaded(true);
   // A new photo invalidates the old depth map, and everything that depended on it.
   controls.setDepthAvailable(false);
-  params = { ...params, showDepthMap: false, distant: { ...params.distant, on: false } };
+  params = {
+    ...params,
+    showDepthMap: false,
+    preserveForeground: false,
+    distant: { ...params.distant, on: false },
+  };
   controls.showDepthStatus('Not estimated for this photo yet.');
 
   // A photo opens on the suggestion, so the painter sees a usable study without touching a slider.

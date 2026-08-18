@@ -3,6 +3,7 @@ import {
   absorbSmallRegions,
   createSimplifyScratch,
   majorityFilter,
+  restoreDetail,
   simplifyLabels,
   simplifySettings,
 } from './simplify';
@@ -237,5 +238,46 @@ describe('simplifyLabels', () => {
       out,
     );
     expect(Array.from(labels)).toEqual(before);
+  });
+});
+
+describe('restoreDetail', () => {
+  it('keeps the simplified map where the scene is far', () => {
+    const simplified = Uint8Array.from([2, 2, 2]);
+    const detailed = Uint8Array.from([0, 1, 2]);
+    const out = new Uint8Array(3);
+    restoreDetail(simplified, detailed, Float32Array.from([1, 1, 1]), 0.4, out);
+    expect(Array.from(out)).toEqual([2, 2, 2]);
+  });
+
+  it('puts the detail back where the scene is near', () => {
+    const simplified = Uint8Array.from([2, 2, 2]);
+    const detailed = Uint8Array.from([0, 1, 2]);
+    const out = new Uint8Array(3);
+    restoreDetail(simplified, detailed, Float32Array.from([0, 0, 0]), 0.4, out);
+    expect(Array.from(out)).toEqual([0, 1, 2]);
+  });
+
+  it('splits at the limit, exclusive of it', () => {
+    const simplified = Uint8Array.from([2, 2, 2]);
+    const detailed = Uint8Array.from([0, 0, 0]);
+    const out = new Uint8Array(3);
+    restoreDetail(simplified, detailed, Float32Array.from([0.39, 0.4, 0.41]), 0.4, out);
+    expect(Array.from(out)).toEqual([0, 2, 2]);
+  });
+
+  it('decides each pixel independently, so it may write into its own input', () => {
+    const simplified = Uint8Array.from([2, 2, 2, 2]);
+    const detailed = Uint8Array.from([0, 1, 0, 1]);
+    restoreDetail(simplified, detailed, Float32Array.from([0, 1, 0, 1]), 0.5, simplified);
+    expect(Array.from(simplified)).toEqual([0, 2, 0, 2]);
+  });
+
+  it('leaves the map untouched when nothing is near enough', () => {
+    const simplified = Uint8Array.from([1, 1]);
+    const detailed = Uint8Array.from([0, 0]);
+    const out = new Uint8Array(2);
+    restoreDetail(simplified, detailed, Float32Array.from([0.5, 0.9]), 0, out);
+    expect(Array.from(out)).toEqual([1, 1]);
   });
 });

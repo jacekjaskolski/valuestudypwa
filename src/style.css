@@ -175,7 +175,13 @@ body {
  */
 .app[data-view] .stage--dragging .panel {
   position: absolute;
-  inset: 0;
+  /*
+   * Inset by the stage's own padding, not zero. An absolutely positioned element resolves against
+   * its ancestor's *padding* box, so `inset: 0` would make the panel wider than it is at rest by
+   * exactly that padding — and the canvas, sized by `max-width: 100%`, would grow to match. The
+   * picture would swell the instant a drag began and shrink back when it ended.
+   */
+  inset: 0 var(--gap);
   display: flex;
   will-change: clip-path;
 }
@@ -228,11 +234,12 @@ body {
   min-height: 0;
   display: flex;
   /*
-   * Top, not centre. Whatever room the picture does not fill then collects at the bottom, which is
-   * exactly where a sheet floats — so on a wide screen the controls sit over empty space instead
-   * of over the image. Constant either way, so nothing moves when a sheet opens.
+   * Centred. Pinning the picture to the top puts every bit of spare room under it, which does keep
+   * a floating sheet off the image but reads as the picture having slid up the screen. A sheet
+   * overlapping the foot of a picture is what a sheet does; a picture sitting high for no visible
+   * reason is a mistake.
    */
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   background: transparent;
 }

@@ -241,6 +241,8 @@ body {
    */
   align-items: center;
   justify-content: center;
+  /* Just off centre, so the picture is not sitting low against a tall dock. */
+  padding-bottom: 1.75rem;
   background: transparent;
 }
 
@@ -325,11 +327,26 @@ body {
   pointer-events: none;
 }
 
+/*
+ * Everything between the image and the toolbar. It exists to give the sheet something to sit on:
+ * anchored to the side, a sheet floats above the value bar and the pinned slider as well, which
+ * puts it needlessly far up the picture.
+ */
+.dock__above {
+  position: relative;
+}
+
+/*
+ * Bottom edge against the top of the toolbar, growing upward from there. It covers the value bar
+ * and the pinned slider on the way, which is the right trade: those are still there when it
+ * closes, and a panel that opens right by the button that opened it is easier to follow than one
+ * that appears halfway up the screen.
+ */
 .sheets {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 100%;
+  bottom: 0;
   z-index: 3;
   /* The container spans the stage when empty; only the sheet itself should catch a finger. */
   pointer-events: none;
@@ -343,9 +360,9 @@ body {
   pointer-events: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.25rem;
   margin: 0 var(--gap) var(--gap);
-  padding: var(--gap);
+  padding: 0.5rem var(--gap);
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 0.5rem;
@@ -653,6 +670,15 @@ body {
 /* Out of the sheets and into the dock, so it needs the dock's own margins. */
 .slider--pinned {
   margin: 0 var(--gap) 0.2rem;
+}
+
+/* Sliders stacked in a sheet sit closer together than one standing on its own. */
+.sheet .slider__input {
+  height: 1.5rem;
+}
+
+.sheet .row {
+  gap: 0.4rem var(--gap);
 }
 
 .slider__label {

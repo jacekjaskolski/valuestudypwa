@@ -231,13 +231,15 @@ export const FOCUS_DEFAULT_DEPTH = 0.25;
 export const FOCUS_MAX_FALLOFF = 0.4;
 
 /**
- * How much of the falloff counts as in focus, 0–1.
+ * How many steps the sharp band grades through, from untouched to fully simplified.
  *
- * A zone label is discrete — a pixel keeps its detail or it does not — so the Gaussian has to be
- * decided somewhere. At 0.5 the sharp band runs about 1.2 standard deviations either side of the
- * focus depth, giving it a near and a far limit like a real depth of field.
+ * A zone label is discrete, so there is no half-simplified value to fade towards: the only way to
+ * soften the edge of the band is to have intermediate simplifications to pass through. Two levels
+ * is a hard cut at the halfway point of the falloff.
  *
- * Raising it narrows the band; lowering it widens it. It does not soften the transition: for that
- * the simplification would have to run at several strengths, one pass each.
+ * Each step past the first costs one more majority-filter pass, about 20ms at 1024×768, and only
+ * while the band is actually in use.
+ *
+ * Higher: a smoother transition. Lower: cheaper, and eventually a visible edge where the band ends.
  */
-export const FOCUS_WEIGHT_THRESHOLD = 0.5;
+export const FOCUS_LEVELS = 3;

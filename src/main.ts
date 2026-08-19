@@ -11,6 +11,7 @@ import {
   DEFAULT_PERCENTILE_LIGHT,
   DEPTH_NEAR_IS_HIGH,
   FOCUS_DEFAULT_DEPTH,
+  FOCUS_LEVELS,
   FOCUS_MAX_FALLOFF,
   HISTOGRAM_BINS,
   SQUINT_HIGHLIGHT_BLUR_RATIO,
@@ -36,7 +37,8 @@ import {
 } from './pipeline/render';
 import {
   createSimplifyScratch,
-  restoreDetail,
+  gradeDetail,
+  majorityFilter,
   simplifyLabels,
   simplifySettings,
   type SimplifyScratch,
@@ -178,7 +180,9 @@ async function runExpensivePass(file: Blob): Promise<ImageState> {
     zoneColours: null,
     labels: new Uint8Array(size),
     simplified: new Uint8Array(size),
-    scratch: createSimplifyScratch(source.width, source.height),
+    // Two of the levels are the untouched and the fully simplified maps, which already exist;
+    // the rest are the steps the focus band grades through.
+    scratch: createSimplifyScratch(source.width, source.height, Math.max(0, FOCUS_LEVELS - 2)),
     output: new Uint8ClampedArray(source.rgba.length),
     blurScratch: null,
     depth: null,
@@ -249,9 +253,19 @@ function runCheapPass(image: ImageState, current: Params): void {
     // than a second simplification pass. Written back into the simplified buffer, which is safe
     // because the unsimplified one it reads from is a different array.
     if (current.focusWidth > 0 && image.depth !== null) {
-      restoreDetail(
-        image.simplified,
-        image.labels,
+      // Sharpest first: untouched, then each intermediate simplification, then the full one. The
+      // middles are only built here, so a band that is switched off costs nothing.
+      const levels: ZoneMap[] = [image.labels];
+      for (let step = 1; step <= image.scratch.middles.length; step++) {
+        const middle = image.scratch.middles[step - 1]!;
+        const radius = Math.round((settings.radius * step) / (FOCUS_LEVELS - 1));
+        majorityFilter(image.labels, width, height, radius, image.scratch, middle);
+        levels.push(middle);
+      }
+      levels.push(image.simplified);
+
+      gradeDetail(
+        levels,
         image.depth,
         current.focusDepth,
         current.focusWidth * FOCUS_MAX_FALLOFF,

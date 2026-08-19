@@ -3,8 +3,8 @@ import {
   absorbSmallRegions,
   createSimplifyScratch,
   focusWeight,
+  gradeDetail,
   majorityFilter,
-  restoreDetail,
   simplifyLabels,
   simplifySettings,
 } from './simplify';
@@ -272,23 +272,47 @@ describe('focusWeight', () => {
   });
 });
 
-describe('restoreDetail', () => {
-  const simplified = () => Uint8Array.from([2, 2, 2, 2, 2]);
-  const detailed = () => Uint8Array.from([0, 0, 0, 0, 0]);
+describe('gradeDetail', () => {
+  const sharp = () => Uint8Array.from([0, 0, 0, 0, 0]);
+  const mid = () => Uint8Array.from([1, 1, 1, 1, 1]);
+  const soft = () => Uint8Array.from([2, 2, 2, 2, 2]);
   const depths = Float32Array.from([0, 0.25, 0.5, 0.75, 1]);
 
-  it('keeps detail around the focus depth and simplifies away from it', () => {
+  it('takes the sharpest map at the focus depth and the softest far from it', () => {
     const out = new Uint8Array(5);
-    restoreDetail(simplified(), detailed(), depths, 0.25, 0.18, out);
-    expect(out[1]!).toBe(0); // at the focus depth
-    expect(out[4]!).toBe(2); // far from it
+    gradeDetail([sharp(), soft()], depths, 0.25, 0.18, out);
+    expect(out[1]!).toBe(0);
+    expect(out[4]!).toBe(2);
+  });
+
+  it('passes through the middle levels rather than cutting straight over', () => {
+    // The point of the extra levels: somewhere between in focus and out of it, the pixel takes a
+    // partly simplified map instead of jumping from one extreme to the other.
+    const out = new Uint8Array(5);
+    gradeDetail([sharp(), mid(), soft()], depths, 0, 0.5, out);
+    expect(Array.from(out)).toContain(1);
+  });
+
+  it('never skips a step as the depth walks away from focus', () => {
+    const wide = Float32Array.from({ length: 40 }, (_, i) => i / 39);
+    const out = new Uint8Array(40);
+    gradeDetail(
+      [new Uint8Array(40).fill(0), new Uint8Array(40).fill(1), new Uint8Array(40).fill(2)],
+      wide,
+      0,
+      0.4,
+      out,
+    );
+    for (let i = 1; i < 40; i++) {
+      expect(out[i]! - out[i - 1]!).toBeLessThanOrEqual(1);
+    }
   });
 
   it('moves the sharp band when the focus moves', () => {
     const near = new Uint8Array(5);
-    restoreDetail(simplified(), detailed(), depths, 0, 0.18, near);
+    gradeDetail([sharp(), soft()], depths, 0, 0.18, near);
     const far = new Uint8Array(5);
-    restoreDetail(simplified(), detailed(), depths, 1, 0.18, far);
+    gradeDetail([sharp(), soft()], depths, 1, 0.18, far);
     expect(near[0]!).toBe(0);
     expect(near[4]!).toBe(2);
     expect(far[0]!).toBe(2);
@@ -296,9 +320,8 @@ describe('restoreDetail', () => {
   });
 
   it('gives the band a far edge as well as a near one, unlike a cutoff', () => {
-    // Focused in the middle: both the nearest and the farthest are simplified.
     const out = new Uint8Array(5);
-    restoreDetail(simplified(), detailed(), depths, 0.5, 0.12, out);
+    gradeDetail([sharp(), soft()], depths, 0.5, 0.12, out);
     expect(out[0]!).toBe(2);
     expect(out[2]!).toBe(0);
     expect(out[4]!).toBe(2);
@@ -306,17 +329,22 @@ describe('restoreDetail', () => {
 
   it('widens the band with the falloff', () => {
     const tight = new Uint8Array(5);
-    restoreDetail(simplified(), detailed(), depths, 0.5, 0.05, tight);
+    gradeDetail([sharp(), soft()], depths, 0.5, 0.05, tight);
     const loose = new Uint8Array(5);
-    restoreDetail(simplified(), detailed(), depths, 0.5, 0.6, loose);
-    const sharpCount = (m: Uint8Array): number =>
-      Array.from(m).filter((v) => v === 0).length;
+    gradeDetail([sharp(), soft()], depths, 0.5, 0.6, loose);
+    const sharpCount = (m: Uint8Array): number => Array.from(m).filter((v) => v === 0).length;
     expect(sharpCount(loose)).toBeGreaterThan(sharpCount(tight));
   });
 
-  it('decides each pixel independently, so it may write into its own input', () => {
-    const map = Uint8Array.from([2, 2]);
-    restoreDetail(map, Uint8Array.from([0, 0]), Float32Array.from([0, 1]), 0, 0.18, map);
-    expect(Array.from(map)).toEqual([0, 2]);
+  it('decides each pixel independently, so it may write into one of its own levels', () => {
+    const softest = Uint8Array.from([2, 2]);
+    gradeDetail([Uint8Array.from([0, 0]), softest], Float32Array.from([0, 1]), 0, 0.18, softest);
+    expect(Array.from(softest)).toEqual([0, 2]);
+  });
+
+  it('copies through when given a single level', () => {
+    const out = new Uint8Array(2);
+    gradeDetail([Uint8Array.from([1, 2])], Float32Array.from([0, 1]), 0, 0.18, out);
+    expect(Array.from(out)).toEqual([1, 2]);
   });
 });

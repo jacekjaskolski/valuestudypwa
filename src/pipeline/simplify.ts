@@ -24,11 +24,7 @@
  * Pure: typed arrays in, typed arrays out.
  */
 
-import {
-  FOCUS_WEIGHT_THRESHOLD,
-  SIMPLIFY_MAX_AREA_FRACTION,
-  SIMPLIFY_MAX_RADIUS_FRACTION,
-} from '../constants';
+import { SIMPLIFY_MAX_AREA_FRACTION, SIMPLIFY_MAX_RADIUS_FRACTION } from '../constants';
 import { labelUniformRegions } from './regions';
 import { ZONE_DARK, ZONE_LIGHT, ZONE_MID, type ZoneMap } from './threshold';
 
@@ -77,9 +73,18 @@ export interface SimplifyScratch {
   stack: Int32Array;
   /** The stage-one result, handed to stage two. */
   intermediate: ZoneMap;
+  /**
+   * The partly-simplified maps the focus band grades through. One per step between untouched and
+   * fully simplified; empty when the band is a hard cut.
+   */
+  middles: ZoneMap[];
 }
 
-export function createSimplifyScratch(width: number, height: number): SimplifyScratch {
+export function createSimplifyScratch(
+  width: number,
+  height: number,
+  middles = 0,
+): SimplifyScratch {
   const size = width * height;
   return {
     planes: [new Uint16Array(size), new Uint16Array(size), new Uint16Array(size)],
@@ -88,6 +93,7 @@ export function createSimplifyScratch(width: number, height: number): SimplifySc
     ids: new Int32Array(size),
     stack: new Int32Array(size),
     intermediate: new Uint8Array(size),
+    middles: Array.from({ length: middles }, () => new Uint8Array(size)),
   };
 }
 
@@ -215,6 +221,9 @@ export function majorityFilter(
 /** How many zones the study has. Not a parameter — see the module comment. */
 const ZONE_COUNT = 3;
 
+/** Resolution of the depth-to-level table in `gradeDetail`. */
+const WEIGHT_STEPS = 1024;
+
 /**
  * Absorb regions below `minArea` into the zone that borders them most.
  *
@@ -323,34 +332,54 @@ export function focusWeight(depth: number, focus: number, falloff: number): numb
 }
 
 /**
- * Put the detail back wherever the scene is in focus.
+ * Choose, per pixel, from a set of label maps graded sharpest-first, by how in focus it is.
  *
- * Input: `simplified` and `detailed`, two label maps of the same image — the second being what the
- * first looked like before simplification; `depth` 0–1 where 1 is farthest; `focus`, the depth to
- * keep sharp; `falloff`, how fast sharpness is given up either side. Output: `out`, written in
- * place, and safe to alias either input since every pixel is decided independently.
+ * Input: `levels`, the same image simplified by increasing amounts — `levels[0]` untouched,
+ * the last one fully simplified; `depth` 0–1 where 1 is farthest; `focus`, the depth to keep
+ * sharp; `falloff`, how fast sharpness is given up either side. Output: `out`, written in place,
+ * and safe to alias any level since every pixel is decided independently.
  *
  * A painter simplifies the background and keeps the subject sharp, which no single simplification
- * strength can do because it treats the whole frame alike. This needs no second pass: both maps
- * already exist, so choosing between them per pixel is one walk over the image.
+ * strength can do because it treats the whole frame alike.
  *
- * The choice is a threshold on the Gaussian rather than a blend, because a zone label cannot be
- * half-simplified. What the falloff buys is a band with a near and a far edge, placed where the
- * painter wants it — not a soft transition.
+ * With two levels this is a hard cut at the halfway point of the falloff — sharp inside the band,
+ * fully simplified outside, and nothing in between. That is forced by the labels being discrete:
+ * there is no half-simplified value to interpolate towards, so the only way to grade the
+ * transition is to have something to grade *through*. Each extra level is one more step, and one
+ * more simplification pass to produce.
  */
-export function restoreDetail(
-  simplified: ZoneMap,
-  detailed: ZoneMap,
+export function gradeDetail(
+  levels: readonly ZoneMap[],
   depth: Float32Array,
   focus: number,
   falloff: number,
   out: ZoneMap,
 ): ZoneMap {
+  const last = levels.length - 1;
+  if (last < 1) {
+    if (levels[0] !== undefined && out !== levels[0]) {
+      out.set(levels[0]);
+    }
+    return out;
+  }
+
+  /*
+   * Which level each depth lands on, tabulated. The weight is a Gaussian, and calling `exp` a
+   * million times a frame cost more than everything else this function does put together. Depth is
+   * already normalised to 0-1, so a table over it is exact to within one step of quantisation, and
+   * the answer is an integer index either way.
+   */
+  const steps = new Uint8Array(WEIGHT_STEPS + 1);
+  for (let i = 0; i <= WEIGHT_STEPS; i++) {
+    // Full weight takes the sharpest map, no weight the softest, and the rounding puts the steps
+    // at even intervals of the falloff between them.
+    steps[i] = Math.round((1 - focusWeight(i / WEIGHT_STEPS, focus, falloff)) * last);
+  }
+
   for (let i = 0; i < out.length; i++) {
-    out[i] =
-      focusWeight(depth[i]!, focus, falloff) >= FOCUS_WEIGHT_THRESHOLD
-        ? detailed[i]!
-        : simplified[i]!;
+    const d = depth[i]!;
+    const at = d <= 0 ? 0 : d >= 1 ? WEIGHT_STEPS : (d * WEIGHT_STEPS + 0.5) | 0;
+    out[i] = levels[steps[at]!]![i]!;
   }
   return out;
 }

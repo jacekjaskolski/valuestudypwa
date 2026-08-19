@@ -7,6 +7,7 @@ import { buildHistogram, percentilesToCuts, suggestPercentiles } from './histogr
 import { buildZoneColours, renderFlat, renderZones } from './render';
 import {
   createSimplifyScratch,
+  gradeDetail,
   majorityFilter,
   absorbSmallRegions,
   simplifySettings,
@@ -122,6 +123,14 @@ describe('whole pipeline on a synthetic photo', () => {
     );
     const correctedHistTime = median(() => buildHistogram(corrected, 256));
 
+    // The focus band grades through intermediate simplifications; each one is a majority pass.
+    const graded = new Uint8Array(width * height);
+    const middle = new Uint8Array(width * height);
+    const gradeTime = median(() => {
+      majorityFilter(labels, width, height, Math.round(settings.radius / 2), scratch, middle);
+      gradeDetail([labels, middle, absorbed], depth, 0.25, 0.18, graded);
+    });
+
     const counts = [0, 0, 0];
     for (let i = 0; i < labels.length; i++) {
       counts[labels[i]!]!++;
@@ -144,6 +153,7 @@ describe('whole pipeline on a synthetic photo', () => {
         `absorbSmallRegions  ${absorbTime.toFixed(1)}ms`,
         `liftDistance        ${aerialTime.toFixed(1)}ms`,
         `histogram of it     ${correctedHistTime.toFixed(1)}ms`,
+        `one focus level    ${gradeTime.toFixed(1)}ms`,
         ...squintTimes.map(
           (t) =>
             `squint sigma ${String(t.sigma).padEnd(4)} /${t.factor}  ` +

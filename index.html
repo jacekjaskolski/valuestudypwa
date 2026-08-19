@@ -10,12 +10,12 @@
   <body>
     <!--
       Three grid rows: app bar, stage, dock. The dock has one side per image, each holding that
-      image's tools and their controls, so a control is only on screen when the thing it acts on
-      is. Side by side, the two sides sit under their own columns; alone, one side takes the width
-      and the other is not rendered at all.
+      image's controls, so a control is only on screen when the thing it acts on is.
 
-      A sheet floats above its side rather than occupying a row, so opening a tool never moves or
-      resizes the image.
+      Alone, the two sides are stacked in the same cell and the inactive one is merely invisible,
+      not removed. That is what keeps the dock exactly as tall for one image as for the other, so
+      the picture is the same size and in the same place whichever is showing. Sheets float above
+      their side rather than occupying a row, for the same reason.
     -->
     <div class="app" id="app" data-view="photo">
       <header class="appbar">
@@ -183,19 +183,12 @@
           <div class="sheets">
             <section
               class="sheet"
-              id="sheet-values"
-              aria-labelledby="sheet-values-title"
+              id="sheet-more"
+              aria-labelledby="sheet-more-title"
               tabindex="-1"
               hidden
             >
-              <h2 class="sheet__title" id="sheet-values-title">Values</h2>
-              <div class="row">
-                <label class="check">
-                  <input type="checkbox" id="showDarks" class="check__input" />
-                  <span>Show darks</span>
-                </label>
-                <button type="button" id="reset" class="button button--end">Reset</button>
-              </div>
+              <h2 class="sheet__title" id="sheet-more-title">More</h2>
 
               <!-- Zero lightening is the off position, so no checkbox gates these. -->
               <div class="group" id="distantControls" hidden>
@@ -229,31 +222,6 @@
                     value="35"
                   />
                 </div>
-              </div>
-            </section>
-
-            <section
-              class="sheet"
-              id="sheet-shapes"
-              aria-labelledby="sheet-shapes-title"
-              tabindex="-1"
-              hidden
-            >
-              <h2 class="sheet__title" id="sheet-shapes-title">Shapes</h2>
-              <div class="slider">
-                <label class="slider__label" for="simplify">
-                  Simplify shapes
-                  <output class="slider__value" id="simplifyValue"></output>
-                </label>
-                <input
-                  type="range"
-                  id="simplify"
-                  class="slider__input"
-                  min="0"
-                  max="100"
-                  step="1"
-                  value="10"
-                />
               </div>
 
               <!-- A band of no width keeps nothing sharp, which is the off position. -->
@@ -289,6 +257,10 @@
                   />
                 </div>
               </div>
+
+              <div class="row">
+                <button type="button" id="reset" class="button button--end">Reset</button>
+              </div>
             </section>
           </div>
 
@@ -322,34 +294,48 @@
             ></div>
           </div>
 
+          <!-- Reached for constantly, so it is not behind a button. -->
+          <div class="slider slider--pinned">
+            <label class="slider__label" for="simplify">
+              Simplify shapes
+              <output class="slider__value" id="simplifyValue"></output>
+            </label>
+            <input
+              type="range"
+              id="simplify"
+              class="slider__input"
+              min="0"
+              max="100"
+              step="1"
+              value="10"
+            />
+          </div>
+
           <nav class="toolbar" aria-label="Study tools">
-            <button
-              type="button"
-              class="tool"
-              data-sheet="sheet-values"
-              data-scope="study"
-              aria-controls="sheet-values"
-              aria-expanded="false"
-            >
+            <!-- Also reached for constantly, so it sits in the toolbar rather than under it. -->
+            <label class="tool tool--toggle">
+              <input type="checkbox" id="showDarks" class="tool__input" />
               <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M5 20V11M12 20V4M19 20v-6" />
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 3a9 9 0 0 0 0 18Z" fill="currentColor" stroke="none" />
               </svg>
-              <span class="tool__label">Values</span>
-            </button>
+              <span class="tool__label">Darks</span>
+            </label>
 
             <button
               type="button"
               class="tool"
-              data-sheet="sheet-shapes"
+              data-sheet="sheet-more"
               data-scope="study"
-              aria-controls="sheet-shapes"
+              aria-controls="sheet-more"
               aria-expanded="false"
             >
               <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="9" cy="12" r="6" />
-                <circle cx="15" cy="12" r="6" />
+                <path d="M4 8h7M15 8h5M4 16h3M11 16h9" />
+                <circle cx="13" cy="8" r="2" />
+                <circle cx="9" cy="16" r="2" />
               </svg>
-              <span class="tool__label">Shapes</span>
+              <span class="tool__label">More</span>
             </button>
           </nav>
         </div>

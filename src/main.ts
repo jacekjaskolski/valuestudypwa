@@ -559,12 +559,8 @@ async function loadFile(file: Blob): Promise<void> {
 }
 
 bindStageGestures({
-  // Previewing needs one image leaving and one arriving, which the side-by-side view is not.
-  peek: (direction) => {
-    const target = controls.peekView(direction);
-    return params.view === 'both' || target === 'both' ? null : target;
-  },
-  commit: (direction) => controls.stepView(direction),
+  peek: () => controls.otherView(),
+  commit: () => controls.toggleView(),
   tap: () => sheets.close(),
 });
 

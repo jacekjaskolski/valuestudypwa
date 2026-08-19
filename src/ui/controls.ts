@@ -45,10 +45,14 @@ export interface Controls {
   /** Reflect the dark preview being switched on by something other than its own checkbox. */
   showDarksState: (on: boolean) => void;
   showView: (view: View) => void;
-  /** Move to the next or previous view, skipping any not currently on offer. */
-  stepView: (delta: 1 | -1) => void;
-  /** Where `stepView` would land, without going there — for previewing a swipe. */
-  peekView: (delta: 1 | -1) => View;
+  /**
+   * The image a swipe would bring up: the other one of the pair, or `null` side by side, where
+   * both are already there. Swiping never reaches the side-by-side view — that is a deliberate
+   * choice made at the switch, not something to land on by accident.
+   */
+  otherView: () => 'photo' | 'study' | null;
+  /** Switch to whatever `otherView` reports. */
+  toggleView: () => void;
   /** Once a photo is loaded, the load button becomes a replace button. */
   showLoaded: (loaded: boolean) => void;
   /** The one line of prose in the photo dock: what the model is doing, or what it cost. */
@@ -205,9 +209,9 @@ export function bindControls(handlers: ControlHandlers): Controls {
   );
   const bothButton = viewButtons.find((button) => button.dataset['view'] === 'both');
 
-  /** In switch order, and only what the viewport can actually show. */
-  const availableViews = (): View[] =>
-    roomForBoth.matches ? ['photo', 'study', 'both'] : ['photo', 'study'];
+  /** The opposite of whichever single image is showing. Side by side there is no opposite. */
+  const otherView = (): 'photo' | 'study' | null =>
+    current === 'photo' ? 'study' : current === 'study' ? 'photo' : null;
 
   const offerBoth = (): void => {
     if (bothButton) {
@@ -239,17 +243,10 @@ export function bindControls(handlers: ControlHandlers): Controls {
       showDarksInput.checked = on;
     },
     showView,
-    peekView: (delta) => {
-      const views = availableViews();
-      const from = views.indexOf(current);
-      return views[(from + delta + views.length) % views.length] ?? current;
-    },
-    stepView: (delta) => {
-      const views = availableViews();
-      const from = views.indexOf(current);
-      // Wraps, so a repeated flick in one direction keeps cycling rather than sticking at an end.
-      const next = views[(from + delta + views.length) % views.length];
-      if (next !== undefined && next !== current) {
+    otherView,
+    toggleView: () => {
+      const next = otherView();
+      if (next !== null) {
         showView(next);
         handlers.onView(next);
       }

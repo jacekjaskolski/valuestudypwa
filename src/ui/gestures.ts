@@ -19,8 +19,12 @@ const DRAG_SLOP = 12;
 /** How much more horizontal than vertical the travel must be, so a diagonal is not a swipe. */
 const DRAG_BIAS = 1.2;
 
-/** Past this, releasing hands over to the other image; short of it, it springs back. */
-const COMMIT_DISTANCE = 60;
+/**
+ * How much of the width must be uncovered before releasing hands over; short of it, it closes
+ * back. Half, so the gesture reads as "pull the other one across" rather than a flick that can be
+ * triggered by accident.
+ */
+const COMMIT_FRACTION = 0.5;
 
 /** Anything that moves less than this is a tap, however long the finger rests. */
 const TAP_SLOP = 10;
@@ -30,11 +34,11 @@ const SETTLE_MS = 170;
 
 export interface StageGestureHandlers {
   /**
-   * Which view a drag in this direction would reach, or `null` to move without previewing.
-   * Previewing needs one image leaving and one arriving; the side-by-side view is neither.
+   * The image a drag would uncover, or `null` if there is nothing to uncover — which is the case
+   * side by side, where both are already on screen.
    */
-  peek: (direction: 1 | -1) => 'photo' | 'study' | null;
-  commit: (direction: 1 | -1) => void;
+  peek: () => 'photo' | 'study' | null;
+  commit: () => void;
   tap: () => void;
 }
 
@@ -104,7 +108,7 @@ export function bindStageGestures(handlers: StageGestureHandlers): void {
         return;
       }
       dragging = true;
-      const target = handlers.peek(dx < 0 ? 1 : -1);
+      const target = handlers.peek();
       if (target !== null) {
         arriving = target === 'photo' ? photo : study;
         leaving = target === 'photo' ? study : photo;
@@ -134,13 +138,12 @@ export function bindStageGestures(handlers: StageGestureHandlers): void {
       return;
     }
 
-    const direction: 1 | -1 = dx < 0 ? 1 : -1;
-    const committed = Math.abs(dx) >= COMMIT_DISTANCE;
+    const committed = Math.abs(dx) >= stage.clientWidth * COMMIT_FRACTION;
 
     if (!leaving || !arriving) {
       clear();
       if (committed) {
-        handlers.commit(direction);
+        handlers.commit();
       }
       return;
     }
@@ -153,7 +156,7 @@ export function bindStageGestures(handlers: StageGestureHandlers): void {
 
     window.setTimeout(() => {
       if (committed) {
-        handlers.commit(direction);
+        handlers.commit();
       }
       clear();
     }, SETTLE_MS);

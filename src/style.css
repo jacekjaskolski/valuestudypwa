@@ -227,7 +227,12 @@ body {
   flex: 1;
   min-height: 0;
   display: flex;
-  align-items: center;
+  /*
+   * Top, not centre. Whatever room the picture does not fill then collects at the bottom, which is
+   * exactly where a sheet floats — so on a wide screen the controls sit over empty space instead
+   * of over the image. Constant either way, so nothing moves when a sheet opens.
+   */
+  align-items: flex-start;
   justify-content: center;
   background: transparent;
 }
@@ -297,10 +302,20 @@ body {
   justify-content: flex-end;
 }
 
-/* Only the image on screen has its tools on screen. */
+/*
+ * Alone, the two sides share one cell and the inactive one is invisible rather than removed. The
+ * row is then as tall as the taller side whichever is showing, so the dock never changes height
+ * and the picture above it never changes size or position when the view is switched. Removing the
+ * inactive side instead saves a little room and moves the image every time, which is worse.
+ */
+.app:not([data-view="both"]) .dock__side {
+  grid-area: 1 / 1;
+}
+
 .app[data-view="photo"] .dock__side--study,
 .app[data-view="study"] .dock__side--photo {
-  display: none;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .sheets {
@@ -505,6 +520,37 @@ body {
   display: none;
 }
 
+/* A toggle that lives in the toolbar reads as a tool, because that is how it is reached. */
+.tool--toggle {
+  user-select: none;
+}
+
+.tool__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.tool--toggle:has(.tool__input:checked) {
+  color: var(--text);
+}
+
+.tool--toggle:has(.tool__input:checked)::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 25%;
+  right: 25%;
+  height: 2px;
+  background: var(--control);
+}
+
+.tool--toggle:has(.tool__input:focus-visible) {
+  outline: 2px solid var(--control);
+  outline-offset: -2px;
+}
+
 .tool__label {
   font-size: 10px;
   letter-spacing: 0.04em;
@@ -595,6 +641,11 @@ body {
 
 .slider[hidden] {
   display: none;
+}
+
+/* Out of the sheets and into the dock, so it needs the dock's own margins. */
+.slider--pinned {
+  margin: 0 var(--gap) 0.2rem;
 }
 
 .slider__label {
